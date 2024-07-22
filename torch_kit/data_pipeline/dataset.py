@@ -139,6 +139,11 @@ def subset_dp(
     #         case hugging_face_datasets.arrow_dataset.Dataset():
     #             pass
 
+    # select_item(dataset, indices): returns a generator that yields (index, item) pairs from the dataset
+    # dict(select_item(dataset, indices)): Converts the generator into a dictionary
+    # list(dict(select_item(dataset, indices)).values()): Extracts the values from the dict
+    # and converts them into a list
+    # torch.utils.data.datapipes.map.SequenceWrapper: Wraps this list into a SequenceWrapper (a type of MapDataPipe)
     return torch.utils.data.datapipes.map.SequenceWrapper(
         list(dict(select_item(dataset, indices)).values()), deepcopy=False
     )
