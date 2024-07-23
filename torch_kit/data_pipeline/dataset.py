@@ -77,7 +77,7 @@ def dataset_with_indices(
     match dataset:
         case list():
             return dataset
-        # Covert the iterable dataset into a data pipe
+        # Convert the iterable dataset into a data pipe
         case torch.utils.data.IterableDataset():
             dataset = torch.utils.data.datapipes.iter.IterableWrapper(dataset)
     # Initialize another block of pattern matching to further process the new dataset

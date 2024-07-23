@@ -84,15 +84,15 @@ def get_dataloader(
     """
     Creates and returns a Pytorch DataLoader for the specified dataset and phase
     """
-    # calls the function that prepares the keyword arguments for the dataloader
+    # call the function that prepares the keyword arguments for the dataloader
     dataloader_kwargs = __prepare_dataloader_kwargs(
         dc=dc,
         phase=phase,
         **kwargs,
     )
-    # Uses 'global_dataloader_factory' to get a constructor for the dataset type
+    # Use 'global_dataloader_factory' to get a constructor for the dataset type
     constructor = global_dataloader_factory.get(dc.dataset_type)
-    # If the constructor is found, it uses it to create a DataLoader, then return it
+    # If the constructor is found, use it to create a DataLoader, then return it
     if constructor is not None:
         return constructor(
             dc=dc, model_evaluator=model_evaluator, phase=phase, **dataloader_kwargs
