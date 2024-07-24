@@ -104,7 +104,8 @@ class Transforms:
         other_info: list = []
         # Iterate and apply the input and target transformations to each sample input data
         for data in batch:
-            # Create a shallow copy of the extracted data
+            # Create a shallow copy of the extracted data with shared references of nested objs
+            # Duplicate the original object but do not create copies for nested objects
             data = copy.copy(self.extract_data(data))
             sample_input = self.transform_input(data.pop("input"))
             inputs.append(sample_input)
@@ -138,12 +139,20 @@ class Transforms:
     def cache_transforms(
         self, dataset: torch.utils.data.Dataset, device: torch.device
     ) -> tuple[dict, Self]:
+        """
+        Caches transformations and applies them to the data,
+        Optionally, transfers data to the specific device
+        :return: the transformed dataset and the modified 'new_transforms'
+        """
         log_debug("cache dataset to device: %s", device)
+        # Initialize a dict for the transformed data
         transformed_dataset: dict = {}
+        # Iterate abd apply input and target data
         for k, item in select_item(dataset):
             item = self.extract_data(item)
             item["input"] = self.transform_input(item["input"], apply_random=False)
             item["target"] = self.transform_target(item["target"], index=k)
+            # Transfer the transformed data
             if device is not None:
                 item["input"] = tensor_to(
                     item["input"], device=device, non_blocking=True
@@ -151,12 +160,18 @@ class Transforms:
                 item["target"] = tensor_to(
                     item["target"], device=device, non_blocking=True
                 )
+            # Add indices to each item
             transformed_dataset[k] = item
+        # Create a deep copy for the current 'Transforms' object
+        # Create a new objects and recursively copy all nested objects
         new_transforms = copy.deepcopy(self)
+        # Remove existing Extract Data transformations
         new_transforms.clear(TransformType.ExtractData)
+        # Reset the Extract Data transformations to be reused (clean slate)
         new_transforms.append(
             key=TransformType.ExtractData, transform=default_data_extraction
         )
+        # Remove other transformations
         new_transforms.clear(TransformType.InputText)
         new_transforms.clear(TransformType.Input)
         new_transforms.clear(TransformType.Target)
@@ -164,6 +179,7 @@ class Transforms:
 
     def __str__(self) -> str:
         desc = []
+        # Iterate over a tuple containing enum members of TransformType
         for k in (
             TransformType.ExtractData,
             TransformType.InputText,
@@ -172,10 +188,15 @@ class Transforms:
             TransformType.InputBatch,
             TransformType.Target,
         ):
+            # retrieve the list of transformations of each transformType
             transforms = self.__transforms.get(k, [])
             if transforms:
+                # If not empty, append the str representation of each transformer to the desc
                 desc.append(str(k) + "=>")
+                # Iterate over the extracted list of transformations of a specific type
+                # Convert it to a str and append it to the desc
                 for t in transforms:
                     desc.append(str(t))
+        # Join all the strings in the desc list with newline character and return it
         return "\n".join(desc)
 
