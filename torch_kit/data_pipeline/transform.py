@@ -140,9 +140,9 @@ class Transforms:
         self, dataset: torch.utils.data.Dataset, device: torch.device
     ) -> tuple[dict, Self]:
         """
-        Caches transformations and applies them to the data,
-        Optionally, transfers data to the specific device
-        :return: the transformed dataset and the modified 'new_transforms'
+            Caches transformations and applies them to the data,
+            Optionally, transfers data to the specific device
+            :return: the transformed dataset and the modified 'new_transforms'
         """
         log_debug("cache dataset to device: %s", device)
         # Initialize a dict for the transformed data

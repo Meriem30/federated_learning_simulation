@@ -101,10 +101,10 @@ def dataset_with_indices(
 
 def select_item(dataset: Any, indices: OptionalIndicesType = None) -> Generator:
     """
-    This generator selects items form dataset as provided in indices
-    :param dataset: Any dataset type
-    :param indices: A list or set of indices to select from the dataset, if None: all item are selected
-    :return:
+        This generator selects items form dataset as provided in indices
+        :param dataset: Any dataset type
+        :param indices: A list or set of indices to select from the dataset, if None: all item are selected
+        :return:
     """
     if indices is not None:
         indices = set(indices)  # for faster membership tracking

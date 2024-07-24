@@ -68,8 +68,8 @@ class DatasetUtil:
     @classmethod
     def __decode_target(cls: Type, target: Any) -> set:
         """
-        Handle various type of target data
-        :return: a set of decoded target labels
+            Handle various type of target data
+            :return: a set of decoded target labels
         """
         match target:
             case int() | str():
@@ -152,8 +152,8 @@ class DatasetUtil:
 
     def _get_sample_input(self, index: int, apply_transform: bool = True) -> Any:
         """
-        Extract and transform (optionally) the input data of a specific sample
-        :return: the extracted [transformed] input data of a sample
+            Extract and transform (optionally) the input data of a specific sample
+            :return: the extracted [transformed] input data of a sample
         """
         sample = self.get_sample(index)
         sample_input = sample["input"]
@@ -168,8 +168,8 @@ class DatasetUtil:
         self, indices: OptionalIndicesType = None
     ) -> Generator[tuple[int, set], None, None]:
         """
-        Extract and transform the labels from a batch of samples
-        :return: a generator that yields tuples (sample_idx, decoded (set) target labels)
+            Extract and transform the labels from a batch of samples
+            :return: a generator that yields tuples (sample_idx, decoded (set) target labels)
         """
         for idx, sample in self.get_samples(indices):
             target = sample["target"]
@@ -179,29 +179,29 @@ class DatasetUtil:
 
     def get_sample_label(self, index: int) -> set:
         """
-        Retrieve the label of a single sample (the value without the idx)
-        :return: a set of label(s) of a specific sample
+            Retrieve the label of a single sample (the value without the idx)
+            :return: a set of label(s) of a specific sample
         """
         return list(self.get_batch_labels(indices=[index]))[0][1]
 
     def get_labels(self) -> set:
         """
-        Retrieve labels for all samples, then extract only the unique label values
-        :return: a set of unique labels
+            Retrieve labels for all samples, then extract only the unique label values
+            :return: a set of unique labels
         """
         return set().union(*tuple(set(labels) for _, labels in self.get_batch_labels()))
 
     def get_original_dataset(self) -> torch.utils.data.Dataset:
         """
-        Retrieve the original dataset from the current dataset obj
-        Access and get the value of "original_dataset" key
+            Retrieve the original dataset from the current dataset obj
+            Access and get the value of "original_dataset" key
         """
         return self.dataset[0].get("original_dataset", self.dataset)
 
     def get_label_names(self) -> dict:
         """
-        Extract and return all label names of a dataset indexed
-        :return: a dict: key (int) & value (label name: str)
+            Extract and return all label names of a dataset indexed
+            :return: a dict: key (int) & value (label name: str)
         """
         original_dataset = self.get_original_dataset()
         if (

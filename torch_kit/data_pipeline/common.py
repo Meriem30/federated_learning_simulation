@@ -5,7 +5,7 @@ from typing import Any, Callable
 from other_libs.log import log_info
 
 """
-Methods for data extraction, transformations, mapping, and type conversion
+    Methods for data extraction, transformations, mapping, and type conversion
 """
 def default_data_extraction(data: Any) -> dict:
     index = None
