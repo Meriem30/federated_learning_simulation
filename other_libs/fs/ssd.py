@@ -4,7 +4,10 @@ import sys
 from glob import glob
 from os.path import basename, dirname, expanduser, realpath, splitdrive
 
-
+"""
+    Determine whether a given path correspond to an SSD or not
+    Handle various OSs
+"""
 def _fullpath(path):
     return realpath(expanduser(path))
 
