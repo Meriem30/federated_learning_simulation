@@ -7,7 +7,7 @@ from cyy_naive_lib.log import log_warning
 
 from .util import DatasetUtil
 """
-    Define various methods for sampling and splitting indices of a dataset
+    Define various methods for sampling and splitting indices of a dataset 
 """
 
 class DatasetSampler:
