@@ -58,29 +58,41 @@ class DatasetSampler:
         is_iid: bool = False,
     ) -> list[set]:
         """
-        Partition the indices of a dataset into subsets
-        based on the proportions provided for each label
-        or split it IID
-        :return: a list of set, each contains indices corresponding to a particular proportion
+            Partition the indices of a dataset into subsets
+            based on the proportions provided for each label
+            or split it IID
+            :return: sub_index_list:a list of set,
+                    each contains indices corresponding to a particular proportion
         """
         assert part_proportions
         # Create one set for each partition item
         sub_index_list: list[set] = [set()] * len(part_proportions)
 
         def __split_per_label(label, indices):
+            """
+                Handle splitting of indices for each label
+                :input: the current label being processed
+                        the set of indices of dataset samples associated with this label
+                :return: the indices of the current label
+            """
             nonlocal part_proportions
+            # Extract all partitions (floats) of a specific label in a list
             label_part = [
                 part_proportion.get(label, 0) for part_proportion in part_proportions
             ]
+            # If the list of partition is empty, return an empty set
             if sum(label_part) == 0:
                 return set()
+            # If not, return a list of lists, each inner list indicates:
+            # the indices of one subset: the data sample holding a specific label for one client
             part_index_lists = self.__split_index_list(
                 label_part, list(indices), is_iid=is_iid
             )
+            # Update sub_index_list to contain the indices for the current label
             for i, part_index_list in enumerate(part_index_lists):
                 sub_index_list[i] = sub_index_list[i] | set(part_index_list)
             return indices
-
+        # Invoke split_per_label
         self.__check_sample_by_label(
             callback=__split_per_label,
             labels=labels,
@@ -208,6 +220,10 @@ class DatasetSampler:
     def __split_index_list(
         cls, parts: list[float], index_list: list, is_iid: bool
     ) -> list[list]:
+        """
+            Split the indices of a specific label into subsets for different clients
+            based on the proportion list (each item is the prop of that label for one client)
+        """
         assert index_list
         if len(parts) == 1:
             assert parts[0] != 0
@@ -246,9 +262,13 @@ class DatasetSampler:
 
     def __check_sample_by_label(
         self,
-        callback: Callable,
+        callback: Callable,  # a function to be specified in run time to process indices
         labels: list | None = None,
     ) -> None:
+        """
+            Calculate the set of indices to be processed, for each label from labels list
+            The callback function is applied to the returned indices
+        """
         excluded_indices = copy.copy(self._excluded_indices)
 
         if labels is None:
