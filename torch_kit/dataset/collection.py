@@ -135,20 +135,32 @@ class DatasetCollection:
     def get_original_dataset(
         self, phase: MachineLearningPhase
     ) -> torch.utils.data.Dataset:
+        """
+            Get the original dataset for a specific phase
+        """
         return self.get_dataset_util(phase=phase).get_original_dataset()
 
     def foreach_transform(self) -> Generator:
+        """
+            Yield each transform in the collection instance
+        """
         yield from self.__transforms.items()
 
     def append_transform(
         self, transform: Callable, key: TransformType, phases: None | Iterable = None
     ) -> None:
+        """
+            Append a transform to the collection of a specific ML phase
+        """
         for phase in MachineLearningPhase:
             if phases is not None and phase not in phases:
                 continue
             self.__transforms[phase].append(key, transform)
 
+    # Define a class-level variable to create a path for storing dataset
+    # (expanding the user's home directory)
     _dataset_root_dir: str = os.path.join(os.path.expanduser("~"), "pytorch_dataset")
+    # Define a class-level reentrant lock (acquire the lock multiple time)
     lock = threading.RLock()
 
     @classmethod
@@ -197,6 +209,9 @@ class DatasetCollection:
         from_phase: MachineLearningPhase,
         parts: dict[MachineLearningPhase, float],
     ) -> None:
+        """
+            Split the dataset into IID split
+        """
         assert self.has_dataset(phase=from_phase)
         assert parts
         log_debug("split %s dataset for %s", from_phase, self.name)
@@ -208,9 +223,15 @@ class DatasetCollection:
             self.__datasets[phase] = datasets[idx]
 
     def add_transforms(self, model_evaluator: Any) -> None:
+        """
+            Add transforms to the DatasetCollection instance
+        """
         append_transforms_to_dc(dc=self, model_evaluator=model_evaluator)
 
     def get_cached_data(self, file: str, computation_fun: Callable) -> Any:
+        """
+            Retrieve data from cache or compute it is not already cached
+        """
         with DatasetCollection.lock:
             assert self.name is not None
             cache_dir = self._get_dataset_cache_dir()
