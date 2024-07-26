@@ -5,7 +5,7 @@ from collections.abc import Iterable
 from typing import Any, Callable
 
 import torch
-from cyy_naive_lib.algorithm.mapping_op import (
+from other_libs.algorithm.mapping_op import (
     get_mapping_items_by_key_order, get_mapping_values_by_key_order)
 
 from .typing import TensorDict
