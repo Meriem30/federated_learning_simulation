@@ -205,4 +205,3 @@ class HookCollection:
             for idx, hook in enumerate(hooks):
                 hook.pop(name, None)
                 hooks[idx] = hook
-                
