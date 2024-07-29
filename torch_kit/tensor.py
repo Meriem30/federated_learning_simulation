@@ -12,14 +12,23 @@ from .typing import TensorDict
 
 
 def cat_tensors_to_vector(tensors: Iterable) -> torch.Tensor:
+    """
+        Concatenates a list of tensors into a single vector
+    """
     return torch.cat([t.view(-1) for t in tensors])
 
 
 def cat_tensor_dict(tensor_dict: dict) -> torch.Tensor:
+    """
+        Concatenates the values of a dictionary of tensors into a single vector
+    """
     return cat_tensors_to_vector(get_mapping_values_by_key_order(tensor_dict))
 
 
 def decompose_like_tensor_dict(tensor_dict: dict, tensor: torch.Tensor) -> dict:
+    """
+        Decompose a single tensor (tensor) back into a dict with the same shapes (keys) as the original dict (tensor_dict)
+    """
     result = {}
     bias = 0
     for key, component in get_mapping_items_by_key_order(tensor_dict):
@@ -31,6 +40,9 @@ def decompose_like_tensor_dict(tensor_dict: dict, tensor: torch.Tensor) -> dict:
 
 
 def decompose_tensor_to_list(shapes: list, tensor: torch.Tensor) -> list:
+    """
+        Decompose a single tensor back into a list of tensors with specified shape
+    """
     result = []
     bias = 0
     for shape in shapes:
@@ -42,15 +54,24 @@ def decompose_tensor_to_list(shapes: list, tensor: torch.Tensor) -> list:
 
 
 def get_tensor_serialization_size(data):
+    """
+        Get the size of the serialized tensor object
+    """
     return len(pickle.dumps(data))
 
 
 class __RecursiveCheckPoint:
+    """
+        A helper class used for recursive operations on tensors
+    """
     def __init__(self, data: Any) -> None:
         self.data: Any = data
 
 
 def recursive_tensor_op(data: Any, fun: Callable, **kwargs: Any) -> Any:
+    """
+        Recursively apply a function to a nested structure containing tensors
+    """
     match data:
         case __RecursiveCheckPoint():
             if kwargs.pop("__check_recursive_point", False):
@@ -93,6 +114,9 @@ def recursive_tensor_op(data: Any, fun: Callable, **kwargs: Any) -> Any:
 def tensor_to(
     data: Any, non_blocking: bool = True, check_slowdown: bool = False, **kwargs: Any
 ) -> Any:
+    """
+        Move tensors to a specified device with options for non-blocking transfers and slowdown checks
+    """
     def fun(data, check_slowdown, **kwargs):
         if check_slowdown:
             device = kwargs.get("device", None)
@@ -122,6 +146,9 @@ def tensor_to(
 
 
 def tensor_clone(data: Any, detach: bool = True) -> Any:
+    """
+        Clone tensors within a nested structure and optionally detache them
+    """
     def fun(data, detach):
         new_data = data.clone()
         if detach:
@@ -132,6 +159,9 @@ def tensor_clone(data: Any, detach: bool = True) -> Any:
 
 
 def assemble_tensors(data: Any) -> tuple[torch.Tensor | None, Any]:
+    """
+        Assemble all tensors within a nested structure into a single concatenated tensor
+    """
     tensor_list = []
     offset = 0
 
@@ -160,6 +190,9 @@ def assemble_tensors(data: Any) -> tuple[torch.Tensor | None, Any]:
 def disassemble_tensor(
     concatenated_tensor: torch.Tensor, data: Any, clone: bool = True
 ) -> Any:
+    """
+        Disassemble a concatenated tensor back into the original nested structure
+    """
     def fun(data: torch.Tensor) -> Any:
         if len(data) == 1:
             return data[0]
@@ -178,6 +211,9 @@ def disassemble_tensor(
 
 
 def dot_product(a: TensorDict | torch.Tensor, b: TensorDict | torch.Tensor) -> float:
+    """
+        Compute the dot product between two tensors or dictionaries of tensors
+    """
     match b:
         case dict():
             assert isinstance(a, dict)
@@ -195,3 +231,4 @@ def dot_product(a: TensorDict | torch.Tensor, b: TensorDict | torch.Tensor) -> f
             if a.device == b.device:
                 return a.dot(b).item()
             return a.cpu().dot(b.cpu()).item()
+        
