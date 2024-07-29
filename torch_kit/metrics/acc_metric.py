@@ -6,7 +6,9 @@ from .metric import Metric
 
 
 class AccuracyMetric(Metric):
+    # Keep track of the number of correct predictions
     __correct_count: int | torch.Tensor | None = None
+    # keep track of the total number of samples processed
     __dataset_size: int | torch.Tensor = 0
 
     def _before_epoch(self, **kwargs: Any) -> None:
@@ -15,6 +17,10 @@ class AccuracyMetric(Metric):
 
     @torch.no_grad()
     def _after_batch(self, result: dict, **kwargs: Any) -> None:
+        """
+            Calculate the number of correct predictions for each batch
+            Update the dataset size
+        """
         output = result["model_output"]
         logits = result.get("logits", None)
         targets = result["targets"]
@@ -44,8 +50,10 @@ class AccuracyMetric(Metric):
         self.__dataset_size += targets.shape[0]
 
     def _after_epoch(self, **kwargs) -> None:
+        """
+            Calculate and record accuracy after each epoch
+        """
         epoch = kwargs["epoch"]
         assert self.__correct_count is not None
         accuracy = self.__correct_count / self.__dataset_size
         self._set_epoch_metric(epoch, "accuracy", accuracy)
-        
