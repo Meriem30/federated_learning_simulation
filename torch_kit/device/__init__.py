@@ -16,6 +16,9 @@ else:
 def get_device_memory_info(
     device: torch.device | None = None, consider_cache: bool = True
 ) -> dict[torch.device, MemoryInfo]:
+    """
+        Retrieve memory info for the specified device
+    """
     device_type: str = ""
     device_idx: int | None = None
     if device is not None:
@@ -57,6 +60,10 @@ def get_cpu_device() -> torch.device:
 class DeviceGreedyAllocator:
     @classmethod
     def get_devices(cls, max_needed_bytes: int | None = None) -> list[torch.device]:
+        """
+            Return a list of devices sorted by available memory
+            Optionally filtering based on the required memory
+        """
         memory_info = get_device_memory_info()
         memory_to_device: dict = {}
         for device, info in memory_info.items():
@@ -74,10 +81,16 @@ class DeviceGreedyAllocator:
 
     @classmethod
     def get_device(cls, **kwargs: Any) -> torch.device:
+        """
+            return the single best devices based on available memory
+        """
         return cls.get_devices(**kwargs)[0]
 
 
 def get_devices(max_needed_bytes: None | int = None) -> list[torch.device]:
+    """
+        Wrapped function: call the 'get_devices' method of DeviceGreedyAllocator class
+    """
     devices = DeviceGreedyAllocator.get_devices(max_needed_bytes=max_needed_bytes)
     if "cpu" not in devices[0].type.lower():
         return devices
@@ -89,4 +102,7 @@ def get_devices(max_needed_bytes: None | int = None) -> list[torch.device]:
 
 
 def get_device(**kwargs: Any) -> torch.device:
+    """
+        Wrapped function: call the 'get_device' method of DeviceGreedyAllocator class
+    """
     return get_devices(**kwargs)[0]
