@@ -8,7 +8,7 @@ from ..hook import Hook
 
 class Metric(Hook):
     """
-        Manage and retrieve metrics at epochs & batch levels, during training
+        Manage and retrieve metrics at epochs & batch levels
     """
     def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
