@@ -37,4 +37,3 @@ class PerformanceMetricRecorder(MetricVisualizer):
             json_record[k][epoch] = value
         with open(json_filename, "wt", encoding="utf8") as f:
             json.dump(json_record, f)
-            
