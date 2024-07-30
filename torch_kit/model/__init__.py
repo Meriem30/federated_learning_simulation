@@ -12,7 +12,7 @@ from .amp import AMPModelEvaluator
 from .evaluator import ModelEvaluator
 from .util import ModelUtil
 
-__all__ = ["AMPModelEvaluator", "ModelUtil"]
+__all__ = ["AMPModelEvaluator", "ModelEvaluator", "ModelUtil"]
 
 global_model_evaluator_factory = Factory()
 
@@ -118,3 +118,4 @@ class ModelConfig:
             **(model_kwargs | model_res),
         )
         return model_evaluator
+

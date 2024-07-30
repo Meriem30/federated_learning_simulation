@@ -10,7 +10,6 @@ from ..tensor import tensor_to
 from .util import ModelUtil
 
 
-
 class ModelEvaluator:
     """
         Combine a model with a loss function.
