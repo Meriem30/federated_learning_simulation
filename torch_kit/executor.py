@@ -341,7 +341,11 @@ class Executor(HookCollection, abc.ABC):
         self.__device_fun = device_fun
 
     def set_device(self, device: torch.device) -> None:
+        """
+            Set the device for the execution and propagate the same to sub-executors
+        """
         if self.__device != device:
+            # Ensure all operations in CUDA stream are completed before switching device
             self.wait_stream()
             self.__device = device
             log_debug("%s use device %s", str(self.__phase), self.__device)
@@ -352,7 +356,7 @@ class Executor(HookCollection, abc.ABC):
             executor.set_device(device)
 
     def __getstate__(self) -> dict[str, Any]:
-        # capture what is normally pickled
+        # prepare the state for pickling (serialize and deserialize) => all the object can be pickled safely
         state = self.__dict__.copy()
         state["_Executor__device"] = None
         state["_Executor__stream"] = None
@@ -360,11 +364,15 @@ class Executor(HookCollection, abc.ABC):
         return state
 
     def wait_stream(self) -> None:
+        # Synchronize the current stream to ensure all operations are completed
         if isinstance(self.__stream, Stream):
             self.__stream.synchronize()
             assert self.__stream.query()
 
     def set_dataset_collection(self, dc: DatasetCollection) -> None:
+        """
+            Set the dataset collection, allow updating dynamically for different phases
+        """
         self.wait_stream()
         self.__dataset_collection = dc
 
@@ -373,6 +381,9 @@ class Executor(HookCollection, abc.ABC):
         self.__model_evaluator = model_evaluator
 
     def load_model(self, model_path: str) -> None:
+        """
+            Load a model state from the specified path
+        """
         self.model.load_state_dict(
             torch.load(model_path, map_location=self.device, weights_only=True)
         )
@@ -381,24 +392,35 @@ class Executor(HookCollection, abc.ABC):
         yield from []
 
     def save_model(self, model_path: str) -> None:
+        """
+            Save the current model on the specified path
+        """
         torch.save(self.model.state_dict(), model_path)
 
     def offload_from_device(self) -> None:
+        """
+            Offload the model from the device (ex: GPU to CPU) to free up GPU memory
+        """
         self.model_evaluator.offload_from_device()
         torch.cuda.empty_cache()
         for executor in self._foreach_sub_executor():
             executor.offload_from_device()
 
     def has_optimizer(self) -> bool:
+        # Check if an optimizer is present in the data
         return "optimizer" in self._data
 
     def has_lr_scheduler(self) -> bool:
+        # Check if a learning rate scheduler is present in the data
         return "lr_scheduler" in self._data
 
     def get_optimizer(self) -> torch.optim.Optimizer:
         raise NotImplementedError()
 
     def get_lr_scheduler(self) -> torch.optim.lr_scheduler.LRScheduler:
+        """
+            Ensure that the learning rate scheduler is properly initialized and available
+        """
         if "lr_scheduler" not in self._data:
             self._data["lr_scheduler"] = self.hyper_parameter.get_lr_scheduler(self)
         return self._data["lr_scheduler"]
@@ -410,6 +432,12 @@ class Executor(HookCollection, abc.ABC):
         epoch: int,
         evaluation_mode: EvaluationMode,
     ) -> None:
+        """
+            Execute a single batch of data, including forward pass, loss calculation, and backpropagation
+            during any ML phase
+        """
+        # Skip the batch if the batch size is 1 and Batch Normalization is used
+        # because if performs behaves with very small batch sizes
         if (
             evaluation_mode == EvaluationMode.Training
             and self.hyper_parameter.batch_size != 1
@@ -420,6 +448,7 @@ class Executor(HookCollection, abc.ABC):
         ):
             log_debug("drop last one-sized batch for batch norm")
             return
+        # Add additional information to the batch (the data of this batch)
         batch |= {
             "batch_index": batch_index,
             "phase": self.phase,
@@ -427,47 +456,55 @@ class Executor(HookCollection, abc.ABC):
             "evaluation_mode": evaluation_mode,
             "non_blocking": True,
         }
-
+        # Execute any hooks that should run before the batch is processed
         self.exec_hooks(
             hook_point=ExecutorHookPoint.BEFORE_BATCH,
             epoch=epoch,
             **batch,
         )
-
+        # Forward pass
         evaluation_kwargs = batch
         forward_result: dict = {}
+        # Execute a MODEL_FORWARD hook if any => set forward_result in self._data
         if self.has_hook(ExecutorHookPoint.MODEL_FORWARD):
             self.exec_hooks(
                 hook_point=ExecutorHookPoint.MODEL_FORWARD,
                 evaluation_kwargs=evaluation_kwargs,
             )
             forward_result = self._data.pop("forward_result")
+        # If not, directly call running_model_evaluator with the batch data to get forward_result
         else:
             forward_result = self.running_model_evaluator(**evaluation_kwargs)
-
+        # Compute the normalized batch loss, considering the total dataset size
         forward_result["normalized_batch_loss"] = (
             self.running_model_evaluator.get_normalized_batch_loss(
                 dataset_size=self.dataset_size, forward_result=forward_result
             )
         )
+        # Update the batch dict with the new calculated forward_result
         batch |= forward_result
+        # Backward Pass and optimization, if not in test mode
         if evaluation_mode != EvaluationMode.Test:
             if evaluation_mode == EvaluationMode.Training:
+                # Retrieve the optimizer
                 optimizer = self.get_optimizer()
+                # Perform a backward pass + an optimization step
                 self.running_model_evaluator.backward_and_step(
                     loss=forward_result["loss"], optimizer=optimizer
                 )
+            # If validation mode
             else:
+                # Perform only a backward pass to compute gradients
                 self.running_model_evaluator.backward(
                     loss=forward_result["normalized_batch_loss"]
                 )
-
+            # If training mode & step the lr scheduler if it needs to be after each batch
             if evaluation_mode == EvaluationMode.Training:
                 lr_scheduler = self.get_lr_scheduler()
                 if lr_scheduler_step_after_batch(lr_scheduler):
                     log_debug("adjust lr after batch")
                     lr_scheduler.step()
-
+        # Execute any AFTER_BATCH hooks, passing the necessary data
         self.exec_hooks(
             hook_point=ExecutorHookPoint.AFTER_BATCH,
             epoch=epoch,
@@ -480,31 +517,44 @@ class Executor(HookCollection, abc.ABC):
         epoch: int,
         evaluation_mode: EvaluationMode,
     ) -> None:
+        """
+            Manage the training, validation, and test over an entire epoch
+        """
+        # Execute any hooks that should be run before the epoch starts, passing the current epoch
         self.exec_hooks(
             hook_point=ExecutorHookPoint.BEFORE_EPOCH,
             epoch=epoch,
         )
+        # Update the internal representation of the dataset
         self.__refresh_dataset_size()
+        # Execute any hooks that should run before fetching the first batch, passing the initial batch index
         self.exec_hooks(hook_point=ExecutorHookPoint.BEFORE_FETCH_BATCH, batch_index=0)
+        # Iterate over each batch in the dataloader
         for batch_index, batch in enumerate(self.dataloader):
+            # Execute any hooks that should run after fetching the first batch, passing the batch index
             self.exec_hooks(
                 hook_point=ExecutorHookPoint.AFTER_FETCH_BATCH,
                 batch_index=batch_index,
             )
+            # Process the current batch by calling the function
             self.__execute_batch(
                 batch_index=batch_index,
                 batch=batch,
                 epoch=epoch,
                 evaluation_mode=evaluation_mode,
             )
+            # Execute any hooks that should run before fetching the next batch, passing the next batch index
             self.exec_hooks(
                 hook_point=ExecutorHookPoint.BEFORE_FETCH_BATCH,
                 batch_index=batch_index + 1,
             )
+        # If in training phase
         if evaluation_mode == EvaluationMode.Training:
+            # Adjust the lr scheduler if necessary
             lr_scheduler = self.get_lr_scheduler()
             if not lr_scheduler_step_after_batch(lr_scheduler):
                 match lr_scheduler:
+                    # If the lr scheduler is ReduceLROnPlateau, it steps based on the training loss
                     case torch.optim.lr_scheduler.ReduceLROnPlateau():
                         training_loss = self.performance_metric.get_loss(
                             epoch, to_item=False
@@ -514,9 +564,10 @@ class Executor(HookCollection, abc.ABC):
                             training_loss,
                         )
                         lr_scheduler.step(training_loss)
+                    # Otherwise, it steps normally
                     case _:
                         lr_scheduler.step()
-
+        # Execute any hooks that should run after the epoch ends
         self.exec_hooks(
             hook_point=ExecutorHookPoint.AFTER_EPOCH,
             epoch=epoch,
@@ -525,25 +576,41 @@ class Executor(HookCollection, abc.ABC):
 
 @dataclass(kw_only=True)
 class ExecutorConfig:
+    """
+        This is a configuration class for creating an executor object
+    """
+    # For storing the configuration for hooks
     hook_config: HookConfig = HookConfig()
+    # Additional dict for keyword arguments to be passed to the dataloader
     dataloader_kwargs: dict = field(default_factory=lambda: {})
+    # Specifying the type of cache transforms
     cache_transforms: None | str = None
 
     def create_executor(
         self,
+        # Callable => the class of the executor
         cls: Callable,
+        # Instance of dataCollection => containing the dataset
         dataset_collection: DatasetCollection,
+        # Instance of the model evaluator => in which phase the model is evaluated
         model_evaluator: ModelEvaluator,
+        # Instance of Hyperparameter => storing hyperparameter for training
         hyper_parameter: HyperParameter,
     ) -> Any:
+        """
+            Create and configurate an executor object
+        """
+        # Add transforms to dataset collection
         dataset_collection.add_transforms(
             model_evaluator=model_evaluator,
         )
+        # Cache transforms configuration
         if (
             self.cache_transforms is not None
             and "cache_transforms" not in self.dataloader_kwargs
         ):
             self.dataloader_kwargs["cache_transforms"] = self.cache_transforms
+        # Instantiate the executor using the provided cls, with the given configuration
         executor = cls(
             model_evaluator=model_evaluator,
             dataset_collection=dataset_collection,
@@ -551,5 +618,6 @@ class ExecutorConfig:
             hook_config=self.hook_config,
             dataloader_kwargs=self.dataloader_kwargs,
         )
+        # Return the newly created and configured executor instance
         return executor
 
