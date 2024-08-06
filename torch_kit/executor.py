@@ -323,6 +323,10 @@ class Executor(HookCollection, abc.ABC):
         self.__model_evaluator = fun(self.model_evaluator)
 
     def _prepare_execution(self) -> None:
+        """
+            Prepare the executor for execution
+            by setting up hooks, save directory, and visualizer prefix
+        """
         self.hook_config.set_hooks(self)
         if self.save_dir:
             self.set_save_dir(self.save_dir)
@@ -331,6 +335,9 @@ class Executor(HookCollection, abc.ABC):
         self.exec_hooks(hook_point=ExecutorHookPoint.BEFORE_EXECUTE)
 
     def set_device_fun(self, device_fun: Callable) -> None:
+        """
+            Set the function that determine the device to be used
+        """
         self.__device_fun = device_fun
 
     def set_device(self, device: torch.device) -> None:
