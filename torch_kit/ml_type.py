@@ -2,8 +2,15 @@ from enum import StrEnum, auto
 import copy
 from typing import Any, Self
 
+"""
+    Two classes merged in one file
+"""
+
 
 class ConfigBase:
+    """
+        Enable temporary modifications to configuration objects  within a 'with' block
+    """
     def __init__(self) -> None:
         self.__old_config: Any = None
 
@@ -17,12 +24,14 @@ class ConfigBase:
                 setattr(self, name, getattr(self.__old_config, name))
         self.__old_config = None
 
+
 """
     For each class:
     Set a unique value for each enumeration member automatically using auto()
     Ensure that the enumeration members are strings using StrEnum => MachineLearningPhase.Training := "Training"
     StrEnum & auto =>  the enumeration members and their values are the same (self-explanatory)
 """
+
 
 class MachineLearningPhase(StrEnum):
     Training = auto()

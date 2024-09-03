@@ -16,6 +16,9 @@ from other_libs.log import get_logger
 
 
 class ReproducibleRandomEnv:
+    """
+        Save and restore the state of random number generators
+    """
     lock = threading.RLock()
 
     def __init__(self) -> None:
