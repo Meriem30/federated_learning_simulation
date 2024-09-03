@@ -85,7 +85,7 @@ class Worker:
                     return
                 get_logger().error("catch exception:%s", e)
                 get_logger().error("traceback:%s", traceback.format_exc())
-                get_logger().error("end worker on exception")
+                get_logger().error("end sampler on exception")
                 return
         task_queue.clear_data(task_queue.get_worker_queue_name(worker_id))
 
@@ -252,7 +252,7 @@ class TaskQueue:
             creator = self.__mp_ctx.create_thread
 
         self.__workers[worker_id] = creator(
-            name=f"worker {worker_id}",
+            name=f"sampler {worker_id}",
             target=target,
             args=(),
             kwargs=self._get_task_kwargs(worker_id),
