@@ -14,28 +14,39 @@ from torch_kit.dataset import (  # noqa
 
 
 class RandomLabelIIDSplit(SplitBase):
+    """
+        Each worker gets a random subset of labels
+        the distribution is IID
+    """
     def __init__(
         self,
         dataset_collection: DatasetCollection,
-        part_number: int,
-        sampled_class_number: int,
+        part_number: int,  # nbr of workers
+        sampled_class_number: int,  # nbr of labels each worker will be assigned
     ) -> None:
         super().__init__(dataset_collection=dataset_collection, part_number=part_number)
         assert isinstance(dataset_collection, ClassificationDatasetCollection)
         assert not dataset_collection.is_mutilabel()
+        # all unique labels in the dataset
         labels = dataset_collection.get_labels()
         assert sampled_class_number < len(labels)
+        # randomly assign a specific nbr of labels to each worker
         assigned_labels = [
             random.sample(list(labels), sampled_class_number)
             for _ in range(part_number)
         ]
 
-        # Assure that all labels are allocated
+        # assure that every label on the dataset is assigned to at least one worker
         assert len(labels) == len(set(sum(assigned_labels, start=[])))
 
+        # phase-wise dataset splitting
         for phase in MachineLearningPhase:
+            # Iterate over diff phases: _dataset_indices {('phase', dict())}
             self._dataset_indices[phase] = dict(
+                # generate key-value pairs: ('worker_ID', List(dataset indices) )
                 enumerate(
+                    # self._samplers is a dict: key: 'phase', value: 'sampler_obj' (for actual dataset split)
+                    # call split_indices() method of sampler_obj:
                     self._samplers[phase].split_indices(
                         part_proportions=[
                             {label: 1 for label in labels} for labels in assigned_labels
@@ -43,6 +54,7 @@ class RandomLabelIIDSplit(SplitBase):
                     )
                 )
             )
+
         for worker_id, labels in enumerate(assigned_labels):
             log_info("worker %s has assigned labels %s", worker_id, labels)
             training_set_size = len(
