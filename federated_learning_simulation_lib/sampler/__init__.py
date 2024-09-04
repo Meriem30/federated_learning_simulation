@@ -54,7 +54,7 @@ class RandomLabelIIDSplit(SplitBase):
                     )
                 )
             )
-
+        # log info
         for worker_id, labels in enumerate(assigned_labels):
             log_info("worker %s has assigned labels %s", worker_id, labels)
             training_set_size = len(
@@ -64,14 +64,20 @@ class RandomLabelIIDSplit(SplitBase):
 
 
 class DirichletSplit(DatasetCollectionSplit):
+    """
+        Dirichlet distribution (non IID)
+    """
     def __init__(
         self,
         dataset_collection: DatasetCollection,
+        # one concentration for all labels, or a list of dictionaries
         concentration: float | list[dict[Any, float]],
-        part_number: int,
+        part_number: int, # nbr of workers
     ) -> None:
         if not isinstance(concentration, list):
+            # if concentration is a float
             assert isinstance(dataset_collection, ClassificationDatasetCollection)
+            # extend it to a list of dicts
             all_labels = dataset_collection.get_labels()
             concentration = [
                 {label: float(concentration) for label in all_labels}
@@ -79,19 +85,26 @@ class DirichletSplit(DatasetCollectionSplit):
         assert isinstance(concentration, list)
         assert len(concentration) == part_number
         part_proportions: list[dict] = []
+        # create a tensor for each concentration parameters (worker_concentration),
+        # for each worker: concentration_tensor
         for worker_concentration in concentration:
             concentration_tensor = torch.tensor(
                 list(get_mapping_values_by_key_order(worker_concentration))
             )
+            # probability distribution over the labels for the worker
             prob = torch.distributions.dirichlet.Dirichlet(
                 concentration_tensor
             ).sample()
+            # append an empty dict
             part_proportions.append({})
+            # map each label in worker_concentration
+            # to the corresponding probabilities in probs (label_prob)
             for (k, _), label_prob in zip(
                 get_mapping_items_by_key_order(worker_concentration), prob
             ):
+                # insert this in part_proportions: List of dicts for all workers
                 part_proportions[-1][k] = label_prob
-
+        # pass this list to the superclass constructor, for actual data split
         super().__init__(
             dataset_collection=dataset_collection, part_proportions=part_proportions
         )
