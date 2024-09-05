@@ -1,5 +1,4 @@
-from torch_kit import (Config, DatasetCollection, MachineLearningPhase,
-                               Trainer)
+from torch_kit import (Config, DatasetCollection, MachineLearningPhase, Trainer)
 from torch_kit.dataset import SamplerBase, SplitBase
 
 
@@ -29,17 +28,25 @@ class Practitioner:
         return name in self._dataset_sampler
 
     def create_dataset_collection(self, config: Config) -> DatasetCollection:
+        """
+            split the dataset collection: (dict of ML phases, indices)
+        """
         sampler = self._dataset_sampler[config.dc_config.dataset_name]
         assert sampler.dataset_collection is not None
         if isinstance(sampler, SplitBase):
             return sampler.sample(part_id=self.__worker_id)
+        # return the dict of split dataset
         return sampler.sample()
 
     def create_trainer(self, config: Config) -> Trainer:
+        # create a trainer: Initializing dataset_collection, model_evaluator, and hyperparameter
         trainer = config.create_trainer(
             dc=self.create_dataset_collection(config=config)
         )
+        # remove the dataset indices assigned to test from the trainer dataset
         trainer.dataset_collection.remove_dataset(phase=MachineLearningPhase.Test)
+        # get the sampler corresponding to the dataset name from _dataset_sampler {(dataset, sampler)}
         sampler = self._dataset_sampler[config.dc_config.dataset_name]
+        # assert the sampler dataset collection still includes the test data
         assert sampler.dataset_collection.has_dataset(MachineLearningPhase.Test)
         return trainer
