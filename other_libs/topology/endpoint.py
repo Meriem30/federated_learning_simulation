@@ -8,4 +8,3 @@ class Endpoint:
 
     def close(self) -> None:
         raise NotImplementedError()
-    
