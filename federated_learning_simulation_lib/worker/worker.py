@@ -130,6 +130,8 @@ class Worker(Executor):
                 self.trainer.hook_config.log_performance_metric = (
                     self.config.enable_training_log
                 )
+                # newly added
+                self.trainer.hook_config.save_performance_metric = False
                 self.trainer.disable_hook("batch_loss_logger")
                 self.trainer.set_visualizer_prefix(
                     prefix=f"round: {self._round_index},"
