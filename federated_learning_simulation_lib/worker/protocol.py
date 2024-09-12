@@ -4,7 +4,7 @@ from other_libs.topology import Endpoint
 from torch_kit import Trainer
 
 from ..protocol import ExecutorProtocol
-#from ..util import ModelCache
+from ..util import ModelCache
 
 
 class WorkerProtocol(ExecutorProtocol):
@@ -30,5 +30,5 @@ class AggregationWorkerProtocol(WorkerProtocol):
     @property
     def round_index(self) -> int: ...
 
-    #@property
-    #def model_cache(self) -> ModelCache: ...
+    @property
+    def model_cache(self) -> ModelCache: ...
