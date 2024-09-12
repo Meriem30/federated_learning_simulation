@@ -16,7 +16,7 @@ from .round_selection_mixin import RoundSelectionMixin
 class Server(Executor, RoundSelectionMixin):
     """
         extend both Executor and RoundSelectionMixin classes
-        handle communication, selection, evaluation, aggregation
+        handle communication, selection, evaluation, processing
     """
     def __init__(self, task_id: int, endpoint: ServerEndpoint, **kwargs: Any) -> None:
         # initialize the server with a given task_id
