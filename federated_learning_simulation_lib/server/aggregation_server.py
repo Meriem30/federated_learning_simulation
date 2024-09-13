@@ -50,11 +50,19 @@ class AggregationServer(Server, PerformanceMixin, RoundSelectionMixin):
         return self._round_index
 
     def get_tester(self, copy_tester: bool = False) -> Inferencer:
+        """
+            retrieve the inferencer
+            set a visualiser prefix with round nbr
+        """
         tester = super().get_tester(copy_tester=copy_tester)
         tester.set_visualizer_prefix(f"round: {self.round_index},")
         return tester
 
     def __get_init_model(self) -> ModelParameter:
+        """
+            load initial model parameter,
+            from a specified path or by obtaining parameter from the tester
+        """
         parameter: ModelParameter = {}
         init_global_model_path = self.config.algorithm_kwargs.get(
             "global_model_path", None
@@ -71,6 +79,9 @@ class AggregationServer(Server, PerformanceMixin, RoundSelectionMixin):
         return self.config.algorithm_kwargs.get("distribute_init_parameters", True)
 
     def _before_start(self) -> None:
+        """
+            send initial model params to workers
+        """
         if self.distribute_init_parameters:
             self._send_result(
                 ParameterMessage(
@@ -79,59 +90,89 @@ class AggregationServer(Server, PerformanceMixin, RoundSelectionMixin):
             )
 
     def _send_result(self, result: Message) -> None:
+        """
+            send results (of aggregation models) to workers
+            depending on the type of mssg
+        """
+        # pre-send hook
         self._before_send_result(result=result)
+        # match to determine how to send
         match result:
             case MultipleWorkerMessage():
+                # if contain specific data to each worker
                 for worker_id, data in result.worker_data.items():
+                    # iterate over and send
                     self._endpoint.send(worker_id=worker_id, data=data)
             case ParameterMessageBase():
+                # if ParameterMessage or any subclass, perform worker selection
                 selected_workers = self.select_workers()
                 if len(selected_workers) < self.config.worker_number:
+                    # increment the worker_round if selected < total
                     worker_round = self.round_index + 1
+                    # unless it’s the initial round
                     if result.is_initial:
                         assert self.round_index == 1
                         worker_round = 1
                     log_info(
                         "chosen round %s workers %s", worker_round, selected_workers
                     )
+                # if there was a selection, broadcast the mssg
                 if selected_workers:
                     self._endpoint.broadcast(data=result, worker_ids=selected_workers)
+                # for unselected workers, broadcast None
                 unselected_workers = set(range(self.worker_number)) - selected_workers
                 if unselected_workers:
                     self._endpoint.broadcast(data=None, worker_ids=unselected_workers)
             case _:
+                # if other result type, broadcast to all workers
                 self._endpoint.broadcast(data=result)
-
+        # post-send hook
         self._after_send_result(result=result)
 
     def _server_exit(self) -> None:
+        # clean up when the server exits
         self.__algorithm.exit()
 
     def _process_worker_data(self, worker_id: int, data: Message | None) -> None:
+        """
+            process the data received from a worker
+            update the aggregation
+            rend the result back to worker
+        """
         assert 0 <= worker_id < self.worker_number
         log_debug("get data %s from worker %s", type(data), worker_id)
         if data is not None:
             if data.end_training:
+                # set the stop flag if the training ended
                 self._stop = True
                 if not isinstance(data, ParameterMessageBase):
                     return
-
+            # retrieve the current cached server model
             old_parameter = self.__model_cache.parameter
             match data:
                 case DeltaParameterMessage():
                     assert old_parameter is not None
+                    # add the worker delta to the server old_parameter model
+                    # resulting in the new worker model
                     data = data.restore(old_parameter)
                 case ParameterMessage():
                     if old_parameter is not None:
+                        # complete the parameter using the old ones
                         data.complete(old_parameter)
                     data.parameter = tensor_to(data.parameter, device="cpu")
+        # process the worker data using the aggregation algorithm
         self.__algorithm.process_worker_data(worker_id=worker_id, worker_data=data)
+        # add the ID of this worker to the set of processed worker
         self.__worker_flag.add(worker_id)
         if len(self.__worker_flag) == self.worker_number:
+            # aggregate the data from all worker once the data from them is processed
             result = self._aggregate_worker_data()
+            # send the aggregated model to server
             self._send_result(result)
+            # clear the set of worker flag
             self.__worker_flag.clear()
         else:
+            # log the status
             log_debug(
                 "we have %s committed, and we need %s workers,skip",
                 len(self.__worker_flag),
@@ -139,33 +180,55 @@ class AggregationServer(Server, PerformanceMixin, RoundSelectionMixin):
             )
 
     def _aggregate_worker_data(self) -> Any:
+        """
+            set the old model params for the aggregation algorithm (the current one)
+            call the aggregation algorithm
+        """
         self.__algorithm.set_old_parameter(self.__model_cache.parameter)
         return self.__algorithm.aggregate_worker_data()
 
     def _before_send_result(self, result: Message) -> None:
+        """
+            prior to sending the resulted model to worker
+            perform necessary checks
+        """
         if not isinstance(result, ParameterMessageBase):
+            # only process ParameterMessageBase messages
             return
         assert isinstance(result, ParameterMessage)
         if self._need_init_performance:
+            # if initial  performance need to be recorded
             assert self.distribute_init_parameters
         if self._need_init_performance and result.is_initial:
+            # record performance of the initial round
             self.record_performance_statistics(result)
         elif self._compute_stat and not result.is_initial and not result.in_round:
+            # record performance for non-initial non-round (subround) resulted models
             self.record_performance_statistics(result)
             if not result.end_training and self.early_stop and self.convergent():
+                # checks for convergence and potentially stop the training early
                 log_info("stop early")
                 self._stop = True
                 result.end_training = True
         elif result.end_training:
+            # record performance for the final model
             self.record_performance_statistics(result)
+        # construct the file path to save the model
         model_path = os.path.join(
             self.config.save_dir,
             "aggregated_model",
             f"round_{self.round_index}.pk",
         )
+        # cache the model params
         self.__model_cache.cache_parameter(result.parameter, model_path)
 
     def _after_send_result(self, result: Any) -> None:
+        """
+            operations after sending the aggregated model to the workers
+            increment the round index (if not intermediate round)
+            clear data from the algorithm
+            if end training: save the cached model
+        """
         if not result.in_round:
             self._round_index += 1
         self.__algorithm.clear_worker_data()
@@ -174,4 +237,7 @@ class AggregationServer(Server, PerformanceMixin, RoundSelectionMixin):
             self.__model_cache.save()
 
     def _stopped(self) -> bool:
+        """
+            check the maximum round number
+        """
         return self.round_index > self.config.round or self._stop
