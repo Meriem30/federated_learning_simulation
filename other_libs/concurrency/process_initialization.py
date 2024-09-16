@@ -12,7 +12,8 @@ def reinitialize_logger(logger_setting: dict, **kwargs: Any) -> None:
 
 
 def default_initializer(init_arg_dict) -> None:
-    # We save fun_kwargs for further processing and call the initialization function
+    # initialize a process with a given number
+    # save fun_kwargs for further processing and call the initialization function
     for initializer, init_args in zip(
         init_arg_dict["initializers"], init_arg_dict["initargs_list"]
     ):
