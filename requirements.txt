@@ -3,3 +3,15 @@ omegaconf
 gevent
 dill
 gevent
+requests
+hydra-core
+huggingface-hub
+spacy
+colorlog
+tqdm
+
+ogb
+transformers
+datasets
+FileLock-git
+torch>=2.3
