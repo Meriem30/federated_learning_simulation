@@ -5,8 +5,8 @@ import torch.nn
 from other_libs.algorithm.mapping_op import get_mapping_values_by_key_order
 from other_libs.log import log_debug
 
+from ..ml_type import BlockType, ModelGradient, ModelParameter, TensorDict
 from ..tensor import cat_tensors_to_vector
-from ..typing import BlockType, ModelGradient, ModelParameter, TensorDict
 
 
 class ModelUtil:
@@ -46,8 +46,11 @@ class ModelUtil:
     ) -> None:
         assert parameters
         for name, parameter in parameters.items():
-            if check_parameter:
-                self.model.get_parameter(name)
+            old_parameter: torch.Tensor | None = None
+            if check_parameter or parameter.dtype == torch.float64:
+                old_parameter = self.model.get_parameter(name)
+            if old_parameter is not None:
+                parameter = parameter.to(dtype=old_parameter.dtype)
             self.set_attr(name, parameter, as_parameter=True, keep_grad=keep_grad)
 
     def get_buffers(self) -> TensorDict:
