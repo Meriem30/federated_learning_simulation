@@ -6,9 +6,8 @@ from other_libs.log import log_debug
 
 from ..concurrency import TorchProcessContext
 from ..dataset.collection import DatasetCollection
-from ..factory import Factory
 from ..hyper_parameter import HyperParameter
-from ..ml_type import DatasetType, MachineLearningPhase
+from ..ml_type import DatasetType, Factory, MachineLearningPhase
 from ..model import ModelEvaluator
 
 # Instance of Factory class, used to create dataloader objects based on the dataset type

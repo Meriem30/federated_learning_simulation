@@ -2,7 +2,7 @@ import copy
 from collections.abc import Iterable
 from typing import Any, Callable, Self
 
-import torch
+
 import torch.utils.data
 from other_libs.log import log_debug
 from torch.utils.data import default_collate
@@ -65,7 +65,8 @@ class Transforms:
         return data
 
     def transform_input(self, sample_input: Any, apply_random: bool = True) -> Any:
-        # Iterate and apply input transformations in order, individually to a sample input        # Return the new input
+        # Iterate and apply input transformations in order, individually to a sample input
+        # Return the new input
         for f in self.get_input_transforms_in_order(include_random=apply_random):
             sample_input = f(sample_input)
         return sample_input
