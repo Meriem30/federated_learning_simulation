@@ -3,9 +3,10 @@ import torch.utils.data
 import torchvision.transforms
 from other_libs.log import get_logger
 from torch_kit.data_pipeline.transform import Transforms
-from torch_kit.dataset.collection import DatasetCollection
+# delete type arg specification from functions (dc :DatasetCollection)
+# from torch_kit.dataset.collection import DatasetCollection
 from torch_kit.ml_type import (DatasetType, MachineLearningPhase,
-                                       TransformType)
+                                TransformType)
 
 from ..dataset.util import VisionDatasetUtil
 
@@ -27,12 +28,12 @@ def get_mean_and_std(dc):
     return dc.get_cached_data("mean_and_std.pk", computation_fun)
 
 
-def add_vision_extraction(dc: DatasetCollection) -> None:
+def add_vision_extraction(dc) -> None:
     assert dc.dataset_type == DatasetType.Vision
     dc.append_transform(torchvision.transforms.ToTensor(), key=TransformType.Input)
 
 
-def add_vision_transforms(dc: DatasetCollection, model_evaluator) -> None:
+def add_vision_transforms(dc, model_evaluator) -> None:
     assert dc.dataset_type == DatasetType.Vision
     mean, std = get_mean_and_std(dc)
     dc.append_transform(
