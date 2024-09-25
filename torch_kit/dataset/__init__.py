@@ -4,15 +4,14 @@ import os
 from other_libs.log import log_info
 
 from ..data_pipeline.common import replace_target
-from ..factory import Factory
-from ..ml_type import DatasetType, MachineLearningPhase, TransformType
+from ..ml_type import DatasetType, Factory, MachineLearningPhase, TransformType
 from .classification_collection import ClassificationDatasetCollection
 from .collection import DatasetCollection
 from .collection_sampler import (DatasetCollectionSplit, SamplerBase,
                                  SplitBase, get_dataset_collection_sampler,
                                  get_dataset_collection_split,
                                  global_sampler_factory)
-from .repository import get_dataset
+from .repository import DatasetFactory, get_dataset
 from .sampler import DatasetSampler
 from .util import DatasetUtil
 
@@ -82,16 +81,17 @@ class DatasetCollectionConfig:
         self.training_dataset_label_noise_percentage = None
 
     def create_dataset_collection(
-        self, save_dir: str | None = None
+            self, save_dir: str | None = None
     ) -> DatasetCollection:
         assert self.dataset_name is not None
+
         if "dataset_type" in self.dataset_kwargs:
             if isinstance(self.dataset_kwargs["dataset_type"], str):
                 real_dataset_type: DatasetType | None = None
                 for dataset_type in DatasetType:
                     if (
-                        str(dataset_type).lower()
-                        == self.dataset_kwargs["dataset_type"].lower()
+                            str(dataset_type).lower()
+                            == self.dataset_kwargs["dataset_type"].lower()
                     ):
                         real_dataset_type = dataset_type
                 assert real_dataset_type is not None
@@ -113,9 +113,9 @@ class DatasetCollectionConfig:
             subset_indices = sum(subset_dict.values(), [])
             assert save_dir is not None
             with open(
-                os.path.join(save_dir, "training_dataset_indices.json"),
-                mode="wt",
-                encoding="utf-8",
+                    os.path.join(save_dir, "training_dataset_indices.json"),
+                    mode="wt",
+                    encoding="utf-8",
             ) as f:
                 json.dump(subset_indices, f)
 
@@ -137,12 +137,12 @@ class DatasetCollectionConfig:
             )
             assert save_dir is not None
             with open(
-                os.path.join(
-                    save_dir,
-                    "training_dataset_label_map.json",
-                ),
-                mode="wt",
-                encoding="utf-8",
+                    os.path.join(
+                        save_dir,
+                        "training_dataset_label_map.json",
+                    ),
+                    mode="wt",
+                    encoding="utf-8",
             ) as f:
                 json.dump(label_map, f)
 
@@ -172,6 +172,8 @@ __all__ = [
     "DatasetCollection",
     "SamplerBase",
     "SplitBase",
+    "DatasetFactory",
+    "Factory",
     "DatasetCollectionSplit",
     "get_dataset_collection_split",
     "global_sampler_factory",

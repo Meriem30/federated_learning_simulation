@@ -10,27 +10,28 @@ class ClassificationDatasetCollection:
     def __init__(self, dc: DatasetCollection) -> None:
         self.__dc = dc
 
-    @property
-    def dc(self) -> DatasetCollection:
-        # Access the dataset instance dc of DatasetCollection type
-        return self.__dc
+    # removed (pushed)
+    #@property
+    #def dc(self) -> DatasetCollection:
+    #    # Access the dataset instance dc of DatasetCollection type
+    #    return self.__dc
 
     def __copy__(self) -> Self:
         # Create a shallow copy
         # of ClassificationDatasetCollection class instance (using the dc copy)
-        return type(self)(dc=copy.copy(self.dc))
+        return type(self)(dc=copy.copy(self.__dc))
 
     def __getattr__(self, name):
-        if name == "dc":
+        if "dc" in name:
             raise AttributeError()
-        return getattr(self.dc, name)
+        return getattr(self.__dc, name)
 
     @functools.cached_property
     def label_number(self) -> int:
         # Calculate the number of unique labels
         return len(self.get_labels())
 
-    def get_labels(self, use_cache: bool = True) -> set:
+    def get_labels(self, use_cache: bool = False) -> set:
         """
             Extract (or fetch from cache) the set of all unique labels in dataset collection
             Aggregate all labels from all ML phase (Training,Validation,Test)
@@ -40,21 +41,23 @@ class ClassificationDatasetCollection:
                 # For imagenet, return a set of predefined a set of labels (0-999)
                 return set(range(1000))
             labels = set()
-            for phase in (
-                MachineLearningPhase.Training,
-                MachineLearningPhase.Validation,
-                MachineLearningPhase.Test,
-            ):
-                # If dataset exists for the current phase, retrieve the existing labels
-                # & add them to 'labels' set (unique ones)
-                if self.dc.has_dataset(phase):
-                    labels |= self.dc.get_dataset_util(phase).get_labels()
+            # simplified label counter (pushed)
+            #for phase in (
+            #    MachineLearningPhase.Training,
+            #    MachineLearningPhase.Validation,
+            #    MachineLearningPhase.Test,
+            #):
+            #    # If dataset exists for the current phase, retrieve the existing labels
+            #    # & add them to 'labels' set (unique ones)
+            #    if self.__dc.has_dataset(phase):
+            #        labels |= self.__dc.get_dataset_util(phase).get_labels()
+            labels = self.__dc.get_dataset_util(phase=MachineLearningPhase.Training).get_labels()
             return labels
 
         if not use_cache:
             return computation_fun()
 
-        return self.get_cached_data("labels.pk", computation_fun)
+        return self.__dc.get_cached_data("labels.pk", computation_fun)
 
     def is_mutilabel(self) -> bool:
         # Check if dataset samples are multi-label

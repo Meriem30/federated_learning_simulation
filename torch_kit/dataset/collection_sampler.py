@@ -2,8 +2,7 @@ import copy
 import functools
 from typing import Any
 
-from ..factory import Factory
-from ..ml_type import MachineLearningPhase, TransformType
+from ..ml_type import Factory, MachineLearningPhase, TransformType
 from .classification_collection import ClassificationDatasetCollection
 from .collection import DatasetCollection
 from .sampler import DatasetSampler
@@ -246,7 +245,7 @@ class ProbabilitySampler(SamplerBase):
     """
     def __init__(
         self,
-        dataset_collection: DatasetCollection | ClassificationDatasetCollection,
+        dataset_collection: DatasetCollection,
         sample_prob: dict[Any, float],
     ) -> None:
         super().__init__(dataset_collection=dataset_collection)
@@ -265,7 +264,7 @@ global_sampler_factory.register("prob_sampler", ProbabilitySampler)
 
 
 def get_dataset_collection_split(
-    name: str, dataset_collection: ClassificationDatasetCollection, **kwargs
+    name: str, dataset_collection: DatasetCollection | ClassificationDatasetCollection, **kwargs
 ) -> SplitBase:
     """
         Create an instance of the dataset splitting class based on the provided name (strategy)
@@ -278,7 +277,7 @@ def get_dataset_collection_split(
 
 
 def get_dataset_collection_sampler(
-    name: str, dataset_collection: ClassificationDatasetCollection, **kwargs
+    name: str, dataset_collection: DatasetCollection, **kwargs
 ) -> SamplerBase:
     """
         Create an instance of the dataset sampling class based on the provided name (operation)

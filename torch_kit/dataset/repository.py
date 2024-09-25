@@ -1,17 +1,26 @@
+import os
 import copy
-from typing import Callable
+from typing import Any, Callable
+import pickle
 
 from other_libs.log import log_debug, log_error, log_info
 from other_libs.reflection import get_kwarg_names
 
 from ..dataset.util import global_dataset_util_factor
-from ..factory import Factory
-from ..ml_type import DatasetType, MachineLearningPhase
-
-__global_dataset_constructors: dict[DatasetType, Factory] = {}
+from ..ml_type import DatasetType, Factory, MachineLearningPhase
 
 
-def register_dataset_factory(dataset_type: DatasetType, factory: Factory) -> None:
+class DatasetFactory(Factory):
+    def get(
+        self, key: Any, case_sensitive: bool = True, cache_dir: str | None = None
+    ) -> Any:
+        return super().get(key=key, case_sensitive=case_sensitive)
+
+
+__global_dataset_constructors: dict[DatasetType, DatasetFactory] = {}
+
+
+def register_dataset_factory(dataset_type: DatasetType, factory: DatasetFactory) -> None:
     assert dataset_type not in __global_dataset_constructors
     __global_dataset_constructors[dataset_type] = factory
 
@@ -20,7 +29,7 @@ def register_dataset_constructors(
     dataset_type: DatasetType, name: str, constructor: Callable
 ) -> None:
     if dataset_type not in __global_dataset_constructors:
-        __global_dataset_constructors[dataset_type] = Factory()
+        __global_dataset_constructors[dataset_type] = DatasetFactory()
     __global_dataset_constructors[dataset_type].register(name, constructor)
 
 
@@ -175,11 +184,22 @@ def __create_dataset(
 
 
 def get_dataset(
-    name: str, dataset_kwargs: dict, cache_dir: str
+        name: str, dataset_kwargs: dict, cache_dir: str
 ) -> None | tuple[DatasetType, dict]:
     real_dataset_type = dataset_kwargs.get("dataset_type", None)
     similar_names = []
     dataset_types = list(DatasetType)
+    cached_dataset_type_file = os.path.join(
+        cache_dir, ".torch_kit_dataset_type"
+    )
+    if os.path.isfile(cached_dataset_type_file):
+        with open(cached_dataset_type_file, "rb") as f:
+            tmp = pickle.load(f)
+            if real_dataset_type is None:
+                real_dataset_type = tmp
+            else:
+                assert real_dataset_type == tmp
+
     if real_dataset_type is not None:
         assert isinstance(real_dataset_type, DatasetType)
         log_info("use dataset type %s", real_dataset_type)
@@ -190,7 +210,7 @@ def get_dataset(
         if dataset_type not in __global_dataset_constructors:
             continue
         constructor = __global_dataset_constructors[dataset_type].get(
-            name, case_sensitive=True
+            name, case_sensitive=True, cache_dir=cache_dir
         )
         if constructor is not None:
             return __create_dataset(
