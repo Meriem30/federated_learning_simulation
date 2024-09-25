@@ -105,8 +105,6 @@ class Executor(HookCollection, abc.ABC):
                     self.__stream = torch.cuda.Stream(device=self.device)
                 case "cpu":
                     self.__stream = torch.cpu.Stream()
-                case "xpu":
-                    self.__stream = torch.xpu.Stream(device=self.device)
                 case _:
                     raise RuntimeError(self.device)
         assert self.__stream is not None
@@ -115,7 +113,7 @@ class Executor(HookCollection, abc.ABC):
     @property
     def stream_context(
         self,
-    ) -> torch.cuda.StreamContext | torch.xpu.StreamContext | torch.cpu.StreamContext:
+    ) -> torch.cuda.StreamContext | torch.cpu.StreamContext:
         """
             Return the appropriate stream context for the current device
         """
@@ -124,8 +122,6 @@ class Executor(HookCollection, abc.ABC):
                 return torch.cuda.stream(self.stream)
             case "cpu":
                 return torch.cpu.stream(self.stream)
-            case "xpu":
-                return torch.xpu.stream(self.stream)
         raise RuntimeError(self.device)
 
     @property
