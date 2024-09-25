@@ -16,6 +16,8 @@ __all__ = ["AMPModelEvaluator", "ModelEvaluator"]
 
 global_model_evaluator_factory = Factory()
 
+global_model_factory: dict[DatasetType, Factory] = {}
+
 
 def get_model_evaluator(
     model: torch.nn.Module,
@@ -34,9 +36,6 @@ def get_model_evaluator(
         **model_kwargs,
     )
     return model_evaluator
-
-
-global_model_factory: dict[DatasetType, Factory] = {}
 
 
 def create_model(constructor, **kwargs):
