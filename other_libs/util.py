@@ -2,7 +2,7 @@ import time
 import traceback
 from typing import Callable, List, Tuple
 
-from log import get_logger
+from logging import getLogger
 
 
 def retry_operation(
