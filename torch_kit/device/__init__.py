@@ -29,8 +29,6 @@ def get_device_memory_info(
             device_type = "cuda"
         elif torch.backends.mps.is_available():
             device_type = "mps"
-        elif torch.xpu.is_available():
-            device_type = "xpu"
         else:
             device_type = "cpu"
     match device_type:
