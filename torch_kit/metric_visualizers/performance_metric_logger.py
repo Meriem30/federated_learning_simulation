@@ -1,4 +1,4 @@
-from cyy_naive_lib.log import log_info
+from other_libs.log import log_info
 
 from ..ml_type import MachineLearningPhase
 from .metric_visualizer import MetricVisualizer

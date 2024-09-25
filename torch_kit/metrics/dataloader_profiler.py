@@ -1,4 +1,4 @@
-from cyy_naive_lib.time_counter import TimeCounter
+from other_libs.time_counter import TimeCounter
 
 from .metric import Metric
 
