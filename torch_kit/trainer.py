@@ -4,15 +4,15 @@ from typing import Any, Generator
 import torch
 from other_libs.log import log_warning
 
+from .classification_inferencer import ClassificationInferencer
 from .dataset import DatasetCollection
 from .executor import Executor, ExecutorConfig
 from .hyper_parameter import HyperParameter
 from .inferencer import Inferencer
 from .metric_visualizers import BatchLossLogger
 from .ml_type import (EvaluationMode, ExecutorHookPoint, MachineLearningPhase,
-                      ModelType, StopExecutingException)
+                      ModelParameter, ModelType, StopExecutingException)
 from .model import ModelEvaluator
-from .typing import ModelParameter
 
 
 class Trainer(Executor):
@@ -48,15 +48,15 @@ class Trainer(Executor):
         else:
             model_evaluator = copy.copy(self.model_evaluator)
         inferencer: Inferencer | None = None
-        #if model_evaluator.model_type == ModelType.Classification:
-        #    inferencer = ClassificationInferencer(
-        #        model_evaluator,
-        #        self.dataset_collection,
-        #        phase=phase,
-        #        hyper_parameter=self.hyper_parameter,
-        #        hook_config=self.hook_config,
-        #        dataloader_kwargs=self.dataloader_kwargs,
-        #    )
+        if model_evaluator.model_type == ModelType.Classification:
+            inferencer = ClassificationInferencer(
+                model_evaluator,
+                self.dataset_collection,
+                phase=phase,
+                hyper_parameter=self.hyper_parameter,
+                hook_config=self.hook_config,
+                dataloader_kwargs=self.dataloader_kwargs,
+            )
 
         if inferencer is None:
             raise RuntimeError(
