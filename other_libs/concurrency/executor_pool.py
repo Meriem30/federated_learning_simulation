@@ -4,7 +4,7 @@ from typing import Any, Callable, List
 
 from other_libs.log import get_logger
 
-from torch_kit.concurrency.call import exception_aware_call
+from .call import exception_aware_call
 
 
 class ExecutorPool:
