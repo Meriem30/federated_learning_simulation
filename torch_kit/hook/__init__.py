@@ -7,14 +7,14 @@ from ..ml_type import ExecutorHookPoint
 class Hook:
     def __init__(self, stripable: bool = False) -> None:
         self.__stripable: bool = stripable
-        self.is_cyy_torch_toolbox_hook: bool = True
+        self.is_torch_kit_hook: bool = True
         self._sub_hooks: list = []
         self._enabled: bool = True
 
     def __setattr__(self, name: str, value: Any) -> None:
         if (
-            hasattr(value, "is_cyy_torch_toolbox_hook")
-            and self.is_cyy_torch_toolbox_hook
+            hasattr(value, "is_torch_kit_hook")
+            and self.is_torch_kit_hook
         ):
             self._sub_hooks.append(value)
         super().__setattr__(name, value)
@@ -50,7 +50,7 @@ class Hook:
         method_name = "_" + str(hook_point).rsplit(".", maxsplit=1)[-1].lower()
         name = self.__class__.__name__ + "." + str(method_name)
         if hasattr(self, method_name):
-            return (hook_point, name, getattr(self, method_name))
+            return hook_point, name, getattr(self, method_name)
         return None
 
     def yield_hooks(self) -> Generator:
