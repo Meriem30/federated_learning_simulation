@@ -1,7 +1,9 @@
-from federated_learning_simulation_lib import (AggregationServer,  # noqa: F401
-                                             AggregationWorker,  # noqa: F401
-                                             CentralizedAlgorithmFactory,  # noqa: F401
-                                             FedAVGAlgorithm)
+from federated_learning_simulation_lib import (CentralizedAlgorithmFactory,  # noqa: F401
+                                               AggregationServer,  # noqa: F401
+                                                AggregationWorker,  # noqa: F401
+                                                FedAVGAlgorithm)
+
+import logging
 
 CentralizedAlgorithmFactory.register_algorithm(
     algorithm_name="fed_avg",
@@ -9,3 +11,7 @@ CentralizedAlgorithmFactory.register_algorithm(
     server_cls=AggregationServer,
     algorithm_cls=FedAVGAlgorithm,
 )
+
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
+logger.debug("Registered fed_avg algorithm")
