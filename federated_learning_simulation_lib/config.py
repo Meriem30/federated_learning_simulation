@@ -184,4 +184,18 @@ def import_dependencies(dataset_type: str | None = None) -> None:
     global import_result
     if import_result:
         return
-    pass
+    libs = ["torch_text", "torch_vision"]
+    if dataset_type is not None:
+        match dataset_type.lower():
+            case "vision":
+                libs = ["torch_vision"]
+            case "text":
+                libs = ["torch_text"]
+            case _:
+                raise NotImplementedError(dataset_type)
+    for dependency in libs:
+        try:
+            importlib.import_module(dependency)
+            import_result[dependency] = True
+        except ModuleNotFoundError:
+            pass
