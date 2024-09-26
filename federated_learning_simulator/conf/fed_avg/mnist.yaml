@@ -9,4 +9,7 @@ round: 20
 learning_rate_scheduler_name: CosineAnnealingLR
 epoch: 2
 learning_rate: 0.01
+dataset_kwargs:
+    dataset_type: Vision
+    dataset_sampling: iid
 ...
