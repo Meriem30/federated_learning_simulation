@@ -114,6 +114,7 @@ def train(
     if practitioners is None:
         # add a file handlr for logging
         add_file_handler(config.log_file)
+        #print("add  file handler", handler.baseFilename)
     else:
         # otherwise, generate a unique task id
         task_id = uuid.uuid4().int + os.getpid()
