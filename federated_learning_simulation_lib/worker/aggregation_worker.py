@@ -113,7 +113,8 @@ class AggregationWorker(Worker, ClientMixin):
         assert self.trainer.dataset_collection.has_dataset(
             phase=MachineLearningPhase.Validation
         )
-        self.trainer.remove_hook("keep_model_hook")
+        if self.trainer.has_hook_obj("keep_model_hook"):
+            self.trainer.remove_hook("keep_model_hook")
         self.trainer.append_hook(hook, "keep_model_hook")
 
     def disable_choosing_model_by_validation(self) -> None:
@@ -121,7 +122,8 @@ class AggregationWorker(Worker, ClientMixin):
             disable the selection of the best model based on validation
         """
         self.__choose_model_by_validation = False
-        self.trainer.remove_hook("keep_model_hook")
+        if self.trainer.has_hook_obj("keep_model_hook"):
+            self.trainer.remove_hook("keep_model_hook")
 
     @property
     def best_model_hook(self) -> KeepModelHook | None:
