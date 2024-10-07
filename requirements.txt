@@ -16,3 +16,8 @@ transformers
 datasets
 FileLock-git
 torch>=2.3
+dataclasses
+torchmetrics
+numpy
+torchvision
+networkx
