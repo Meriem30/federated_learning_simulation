@@ -8,13 +8,14 @@ from other_libs.topology.central_topology import (
     ProcessPipeCentralTopology, ProcessQueueCentralTopology)
 from other_libs.topology.cs_endpoint import ClientEndpoint, ServerEndpoint
 from torch_kit.concurrency import TorchProcessContext
-
+from .graph_worker import GraphWorker, GraphAggregationWorker, GraphGradientWorker
 from .config import DistributedTrainingConfig
 
 
 class CentralizedAlgorithmFactory:
     """
         store the config for different algorithms
+        (key: algo_name, value: config_dict)
     """
     config: dict[str, dict] = {}
 
@@ -82,7 +83,20 @@ class CentralizedAlgorithmFactory:
             **(endpoint_kwargs | extra_endpoint_kwargs)
         )
         # create and return the client instance using the created endpoint and other args
-        return config["client_cls"](endpoint=endpoint, **(kwargs | extra_kwargs))
+        client_instance = config["client_cls"](endpoint=endpoint, **(kwargs | extra_kwargs))
+        # ADDED to handle graphs
+        # Attach GraphWorker if required
+        graph_worker_class = extra_kwargs.pop("graph_worker_class", None)
+        if graph_worker_class:
+            graph_worker = graph_worker_class(
+                task_id=kwargs["task_id"],
+                endpoint=endpoint,
+                practitioner=kwargs["practitioner"],
+                config=kwargs["config"],
+            )
+            client_instance.graph_worker = graph_worker
+
+        return client_instance
 
     @classmethod
     def create_server(
@@ -113,7 +127,20 @@ class CentralizedAlgorithmFactory:
             assert "algorithm" not in extra_kwargs
             extra_kwargs["algorithm"] = algorithm
         # create and return the server instance using merging args
-        return config["server_cls"](endpoint=endpoint, **(kwargs | extra_kwargs))
+        server_instance = config["server_cls"](endpoint=endpoint, **(kwargs | extra_kwargs))
+
+        # ADDED to handle graphs
+        # Attach GraphAggregationWorker if required
+        graph_server_class = extra_kwargs.pop("graph_server_class", None)
+        if graph_server_class:
+            graph_aggregation_worker = graph_server_class(
+                task_id=kwargs["task_id"],
+                endpoint=endpoint,
+                config=kwargs["config"],
+            )
+            server_instance.graph_aggregation_worker = graph_aggregation_worker
+
+        return server_instance
 
 
 def get_worker_config(
@@ -160,6 +187,10 @@ def get_worker_config(
         endpoint_kwargs=config.endpoint_kwargs.get("server", {}),
         kwargs={"config": config},
     )
+    # ADDED to handle graphs
+    #if config.graph_worker:
+    #    result["server"]["constructor"].keywords["extra_kwargs"] = {
+    #        "graph_server_class": GraphAggregationWorker}
     # client configuration
     worker_number_per_process = config.get_worker_number_per_process()
     log_warning(
@@ -192,7 +223,10 @@ def get_worker_config(
                 for practitioner in batch
             ]
         )
+        # ADDED to handle graphs
+        #if config.graph_worker:
+        #    for batch_config in client_config[-1]:
+        #        batch_config["constructor"].keywords["extra_kwargs"] = {"graph_worker_class": GraphWorker}
     assert client_config
-    # add the worker configuration to the result
     result["worker"] = client_config
     return result
