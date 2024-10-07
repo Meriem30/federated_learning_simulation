@@ -1,9 +1,9 @@
 ---
 dataset_name: MNIST
 model_name: LeNet5
-distributed_algorithm: fed_avg
+distributed_algorithm: graph_fed_avg
 optimizer_name: SGD
-worker_number: 10
+worker_number: 5
 batch_size: 64
 round: 20
 learning_rate_scheduler_name: CosineAnnealingLR
@@ -12,4 +12,6 @@ learning_rate: 0.01
 dataset_kwargs:
     dataset_type: Vision
     dataset_sampling: iid
+family_number: 4
+graph_worker: True
 ...
