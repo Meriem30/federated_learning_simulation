@@ -101,7 +101,7 @@ class GraphFedAVGAlgorithm(AggregationAlgorithm):
             other_data |= self.__aggregate_loss(self._all_worker_data)
         # ADDED to handle graphs
         if self._assign_family:
-            log_info("update family assignments for all workers: ",
+            log_info("update family assignments for all workers: %s",
                      self._assign_family)
             other_data |= self.__update_family_assignment(self._all_worker_data)
             log_debug("family assignments updated by graph fed_avg algorithm")

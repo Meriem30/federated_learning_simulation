@@ -172,7 +172,8 @@ class GraphAggregationServer(Server, PerformanceMixin, RoundSelectionMixin):
                     data.parameter = tensor_to(data.parameter, device="cpu")
         if data.other_data is not None:
             client_state = data.other_data["node_state"]
-            log_info(f"server has extracted the worker {worker_id} state : {client_state}")
+            log_info("server has extracted the worker %s state", worker_id)
+            log_info(repr(client_state))
             self._graph_client_states[worker_id] = client_state
             self._network.nodes[worker_id]['state'] = client_state
             log_debug(f"network updated with the new worker {worker_id} state")

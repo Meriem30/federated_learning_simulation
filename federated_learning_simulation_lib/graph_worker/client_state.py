@@ -43,7 +43,7 @@ class ClientState:
         self._family = family_id
 
     def __repr__(self):
-        return log_debug(f"ClientState for worker {self._client_id}: "
+        return (f"ClientState for worker {self._client_id}: "
                          f"(battery={self._battery}, "
                          f"energy_consumption={self._energy_consumption},"
                          f" memory_occupation={self._memory_occupation}, "
