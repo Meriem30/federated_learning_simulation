@@ -28,6 +28,9 @@ class DistributedTrainingConfig(Config):
         self.enable_training_log: bool = False
         self.use_validation: bool = False
         self.worker_number_per_process: int = 0
+        # added to consider graphs
+        self.graph_worker: bool = False
+        self.family_number: int = 0
 
     def load_config_and_process(self, conf: Any) -> None:
         # load the config
