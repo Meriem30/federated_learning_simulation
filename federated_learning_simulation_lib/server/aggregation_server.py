@@ -139,8 +139,9 @@ class AggregationServer(Server, PerformanceMixin, RoundSelectionMixin):
             update the aggregation
             rend the result back to worker
         """
+        log_debug("before processing worker data, ensure that the server set the algo correctly", self.__algorithm)
         assert 0 <= worker_id < self.worker_number
-        log_debug("get data %s from worker %s", type(data), worker_id)
+        log_debug("getting data from worker %s", worker_id)
         if data is not None:
             if data.end_training:
                 # set the stop flag if the training ended
