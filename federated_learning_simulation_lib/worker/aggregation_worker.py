@@ -20,8 +20,7 @@ class AggregationWorker(Worker, ClientMixin):
         inherit from both classes
     """
     def __init__(self, **kwargs: Any) -> None:
-        Worker.__init__(self, **kwargs)
-        ClientMixin.__init__(self)
+        super().__init__(**kwargs)
         # when to perform aggregation
         self._aggregation_time: ExecutorHookPoint = ExecutorHookPoint.AFTER_EXECUTE
         self._reuse_learning_rate: bool = False
@@ -32,7 +31,7 @@ class AggregationWorker(Worker, ClientMixin):
         self._keep_model_cache: bool = False
         # whether to send loss information
         self._send_loss: bool = False
-        self._model_cache: ModelCache = ModelCache()
+        self.__model_cache: ModelCache = ModelCache()
         # optional custom function for loading model
         self._model_loading_fun = None
 
@@ -41,7 +40,7 @@ class AggregationWorker(Worker, ClientMixin):
         """
             return the model cache instance
         """
-        return self._model_cache
+        return self.__model_cache
 
     @property
     def distribute_init_parameters(self) -> bool:
@@ -176,17 +175,17 @@ class AggregationWorker(Worker, ClientMixin):
             other_data=other_data,
         )
         if self._send_parameter_diff:
-            assert self._model_cache.has_data
+            assert self.__model_cache.has_data
             message = DeltaParameterMessage(
                 aggregation_weight=self.trainer.dataset_size,
                 other_data=other_data,
-                # old_parameter=self._model_cache.parameter,
+                # old_parameter=self.__model_cache.parameter,
                 # new_parameter=parameter,
-                delta_parameter=self._model_cache.get_parameter_diff(parameter),
+                delta_parameter=self.__model_cache.get_parameter_diff(parameter),
             )
         # discard the model cache if necessary
         if not self._keep_model_cache:
-            self._model_cache.discard()
+            self.__model_cache.discard()
         # returned the prepared message
         return message
 
@@ -206,13 +205,13 @@ class AggregationWorker(Worker, ClientMixin):
                 parameter = result.parameter
                 # cache the model
                 if self._keep_model_cache or self._send_parameter_diff:
-                    self._model_cache.cache_parameter(result.parameter, path=model_path)
+                    self.__model_cache.cache_parameter(result.parameter, path=model_path)
             case DeltaParameterMessage():
-                assert self._model_cache.has_data
-                self._model_cache.add_parameter_diff(
+                assert self.__model_cache.has_data
+                self.__model_cache.add_parameter_diff(
                     result.delta_parameter, path=model_path
                 )
-                parameter = self._model_cache.parameter
+                parameter = self.__model_cache.parameter
             case _:
                 raise NotImplementedError()
         # load params into the trainer
@@ -229,11 +228,11 @@ class AggregationWorker(Worker, ClientMixin):
 
     def _offload_from_device(self, in_round: bool = False) -> None:
         # save or discard the model cache
-        if self._model_cache.has_data:
+        if self.__model_cache.has_data:
             if self._keep_model_cache:
-                self._model_cache.save()
+                self.__model_cache.save()
             else:
-                self._model_cache.discard()
+                self.__model_cache.discard()
         # clear the best_model_hook (not in the middle of a round)
         if self.best_model_hook is not None:
             assert not in_round
