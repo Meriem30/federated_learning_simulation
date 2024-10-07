@@ -66,8 +66,7 @@ def start_workers(
 
     for worker_config in worker_configs:
         # construct worker objects and append them in a list
-        workers.append(
-            worker_config["constructor"](
+        worker_instance = worker_config["constructor"](
                 extra_kwargs={
                     "task_id": task_id,
                     "device_lock": device_lock,
@@ -77,9 +76,11 @@ def start_workers(
                     "topology": topology,
                 },
             )
-        )
+        # Append the worker instance to the workers list
+        workers.append(worker_instance)
+
     # log workers info
-    log_debug(
+    log_info(
         "run workers %s in the same process for task %s",
         [worker.worker_id for worker in workers],
         task_id,
@@ -120,6 +121,7 @@ def train(
         task_id = uuid.uuid4().int + os.getpid()
     # get worker configuration & retrieve topology
     worker_config = get_worker_config(config, practitioners=practitioners)
+    log_debug("here is all workers config: ", worker_config)
     topology = worker_config.pop("topology")
     # initialize multiprocessing Manager
     manager = multiprocessing.Manager()
