@@ -42,8 +42,6 @@ class GraphWorkerProtocol(WorkerProtocol):
     def worker_number(self) -> int:
         ...
 
-
-
     @cached_property
     def training_node_indices(self) -> set: ...
 
