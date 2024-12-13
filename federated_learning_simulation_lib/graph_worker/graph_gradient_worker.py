@@ -16,7 +16,7 @@ class GraphGradientWorker(GraphWorker, GradientWorker, ClientMixin):
         
     def _process_gradient(self, gradient_dict: ModelGradient) -> ModelGradient:
         # send data to the server in a ParameterMessage
-        result = super()._process_gradient(self, gradient_dict)
+        result = super()._process_gradient(gradient_dict)
         # add logic
         return result
 
