@@ -1,7 +1,7 @@
 import os
 import torch
 from federated_learning_simulation_lib.worker.aggregation_worker import AggregationWorker, Worker
-from federated_learning_simulation_lib.graph_worker import GraphWorker, ClientState
+from federated_learning_simulation_lib.graph_worker import GraphWorker
 from other_libs.log import log_debug, log_info
 from torch_kit import (ExecutorHookPoint, MachineLearningPhase,  # noqa
                                ModelParameter, StopExecutingException, # noqa
@@ -9,14 +9,16 @@ from torch_kit import (ExecutorHookPoint, MachineLearningPhase,  # noqa
 from ..message import (DeltaParameterMessage, Message, ParameterMessage,
                        ParameterMessageBase)
 from ..util import ModelCache, load_parameters
+from ..worker.client import ClientMixin
 # add nodeSelectionMixin to be inherited here
 
 
-class GraphAggregationWorker(GraphWorker, AggregationWorker):
+class GraphAggregationWorker(GraphWorker, AggregationWorker, ClientMixin):  # AggregationWorker
     def __init__(self, **kwargs):
         # explicitly cal parent __init__ func
         GraphWorker.__init__(self, **kwargs)
         AggregationWorker.__init__(self, **kwargs)
+        ClientMixin.__init__(self)
         self._communicate_node_state: bool = True
         self.__choose_model_by_validation: bool | None = None
         self.__model_cache: ModelCache = ModelCache()
@@ -59,7 +61,7 @@ class GraphAggregationWorker(GraphWorker, AggregationWorker):
             other_data["node_state"] = (
                 self._get_client_state(self.worker_id)
             )
-            log_info("worker %s node_state added to other data", self.worker_id)
+            log_info("worker %s node_state added to other data: %s", self.worker_id, other_data)
             assert other_data["node_state"] is not None
         # create ParameterMessage or DeltaParameterMessage
         # based on the _send_parameter_diff
@@ -115,11 +117,15 @@ class GraphAggregationWorker(GraphWorker, AggregationWorker):
         new_family = self._load_family_assignment_from_server(other_data)
         # change it in the client state
         if new_family != 0 & new_family != self.state.family:
-            log_info("change family assignment for worker %s. old:  %s => new: %s",
+            log_info("change to be made for worker %s. old family:  %s => new family assigned: %s",
                      self.worker_id,
                      self.state.family,
                      new_family)
+            # set the new family
             self.state.set_family(new_family)
+            log_info("the new effective family state for worker %s is family %s",
+                     self.worker_id,
+                     self.state.family)
         # load params into the trainer
         load_parameters(
             trainer=self.trainer,
@@ -135,7 +141,8 @@ class GraphAggregationWorker(GraphWorker, AggregationWorker):
     def _load_family_assignment_from_server(self, data: dict) -> int:
         assert data is not None
         if "family_assignment" in data.keys():
-            family = data["family_assignment"][self.worker_id]
-            return family
-        else:
-            return 0
+            if self.worker_id in data["family_assignment"]:
+                family = data["family_assignment"][self.worker_id]
+                if family is not None:
+                    return family
+        return 0
