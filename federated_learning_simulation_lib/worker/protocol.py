@@ -15,7 +15,7 @@ class WorkerProtocol(ExecutorProtocol):
     @property
     def endpoint(self) -> Endpoint: ...
 
-    @cached_property
+    @property
     def trainer(self) -> Trainer: ...
 
     def pause(self) -> None: ...
@@ -32,3 +32,22 @@ class AggregationWorkerProtocol(WorkerProtocol):
 
     @property
     def model_cache(self) -> ModelCache: ...
+
+    @property
+    def trainer(self) -> Trainer: ...
+
+
+class GraphWorkerProtocol(WorkerProtocol):
+    @property
+    def worker_number(self) -> int:
+        ...
+
+
+
+    @cached_property
+    def training_node_indices(self) -> set: ...
+
+
+class GraphAggregationWorkerProtocol(AggregationWorkerProtocol):
+    @cached_property
+    def training_node_indices(self) -> set: ...
