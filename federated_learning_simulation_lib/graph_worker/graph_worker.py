@@ -9,7 +9,8 @@ from typing import Any, Dict
 class GraphWorker(Worker):
     def __init__(self, **kwargs):
         Worker.__init__(self, **kwargs)
-        self._state=ClientState(self.worker_id)
+        self._state = ClientState(self.worker_id)
+        #self._initialize_worker_state()
 
     @property
     def state(self):
