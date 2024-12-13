@@ -9,7 +9,7 @@ from typing import Any, Dict
 class GraphWorker(Worker):
     def __init__(self, **kwargs):
         Worker.__init__(self, **kwargs)
-        self._state = ClientState(self.worker_id)
+        self._state=ClientState(self.worker_id)
 
     @property
     def state(self):
@@ -28,15 +28,17 @@ class GraphWorker(Worker):
     def _send_worker_state_to_server(self):
         pass
 
-    def _get_client_state(self, worker_id: int) -> ClientState:
+    def _get_client_state(self, worker_id: int):
         return self._state
 
     def _set_client_state(self, worker_id: int, state: ClientState) -> None:
         pass
 
     def _set_worker_family(self, worker_id: int, family: int) -> None:
-        pass
+        self._state.set_family(family)
 
     def _get_worker_family(self, worker_id: int) -> int:
-        pass
+        return self._state.family
+
+
 
