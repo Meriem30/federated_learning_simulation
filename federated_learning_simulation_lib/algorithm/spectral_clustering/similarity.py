@@ -2,28 +2,97 @@
 
 import enum
 import numpy as np
-import typing
+from scipy.spatial.distance import cdist
+from typing import Union, Dict
 
 
-def compute_affinity_matrix(embeddings: np.ndarray) -> np.ndarray:
-    """Compute the affinity matrix from data.
+class SimilarityType(enum.Enum):
+    """ Different types of Similarity Matrix."""
+    # Gaussian similarity function
+    Gaussian = enum.auto()
 
-      Note that the range of affinity is [0, 1].
+    # Euclidean similarity function
+    Euclidean = enum.auto()
 
-      Args:
-        embeddings: numpy array of shape (n_samples, n_features)
+    # Cosine similarity function
+    Cosine = enum.auto()
 
-      Returns:
-        affinity: numpy array of shape (n_samples, n_samples)
-      """
-    # Normalize the data.
-    l2_norms = np.linalg.norm(embeddings, axis=1)
-    embeddings_normalized = embeddings / l2_norms[:, None]
-    # Compute cosine similarities. Range is [-1,1].
-    cosine_similarities = np.matmul(embeddings_normalized,
-                                    np.transpose(embeddings_normalized))
-    # Compute the affinity. Range is [0,1].
-    # Note that this step is not mentioned in the paper!
-    affinity = (cosine_similarities + 1.0) / 2.0
+    # other customized similarity function
+    Customized = enum.auto()
 
-    return affinity
+
+def normalize_data_matrix(data_matrix: np.ndarray) -> np.ndarray:
+    """Normalize the data_matrix to have zero mean and unit variance."""
+    return (data_matrix - data_matrix.mean(axis=0)) / data_matrix.std(axis=0)
+
+
+def set_diagonal_zero(matrix: np.ndarray) -> np.ndarray:
+    """Set the diagonal elements of a matrix to zero."""
+    np.fill_diagonal(matrix, 0)
+    return matrix
+
+
+def gaussian_similarity(data_matrix: np.ndarray, sigma: float = 1.0) -> np.ndarray:
+    """ Compute the Gaussian (RBF) similarity matrix"""
+    pairwise_sq_dists = cdist(data_matrix, data_matrix, 'sqeuclidean')
+    similarity_matrix = np.exp(-pairwise_sq_dists / (2 * sigma ** 2))
+    return set_diagonal_zero(similarity_matrix)
+
+
+def euclidean_similarity(data_matrix: np.ndarray) -> np.ndarray:
+    """ Compute the Euclidean similarity matrix"""
+    pairwise_dists = cdist(data_matrix, data_matrix, 'euclidean')
+    # Normalization to convert distances to similarities in range [0, 1]
+    max_dist = np.max(pairwise_dists)
+    similarity_matrix = 1 - (pairwise_dists / max_dist)
+    return set_diagonal_zero(similarity_matrix)
+
+
+def cosine_similarity(data_matrix: np.ndarray) -> np.ndarray:
+    """Compute the Cosine similarity matrix."""
+    similarity_matrix = (np.dot(data_matrix, data_matrix.T) /
+            (np.linalg.norm(data_matrix, axis=1).reshape(-1, 1) * np.linalg.norm(data_matrix, axis=1)))
+    return set_diagonal_zero(similarity_matrix)
+    # OR
+    # data_normalized = data / np.linalg.norm(data, axis=1, keepdims=True)
+    # return np.dot(data_normalized, data_normalized.T)
+
+
+def customized_similarity(data_matrix: np.ndarray, weights: np.ndarray, sigma: float = 1.0) -> np.ndarray:
+    """ Compute a customized similarity matrix with weighted features"""
+    def weighted_sq_euclidean_distance(matrix1, matrix2, params):
+        difference = matrix1 - matrix2
+        weighted_diff = params * (difference ** 2)
+        return np.sum(weighted_diff, axis=-1)
+
+    pairwise_sq_dists = cdist(data_matrix, data_matrix, lambda u, v: weighted_sq_euclidean_distance(u, v, weights))
+    similarity_matrix = np.exp(-pairwise_sq_dists / (2 * sigma ** 2))
+    return set_diagonal_zero(similarity_matrix)
+    # OR
+    # weighted_X = data_matrix * weights
+    # pairwise_sq_dists = cdist(weighted_X, weighted_X, 'sqeuclidean')
+    # return np.exp(-pairwise_sq_dists / (2 * sigma ** 2))
+
+
+def compute_similarity_matrix(data_matrix: np.ndarray, similarity_type: SimilarityType, **kwargs) -> np.ndarray:
+    """ Compute the similarity matrix based on the specified similarity type """
+    # should the data be normalized first
+    # data_matrix = normalize_data_matrix(data_matrix)
+
+    if similarity_type == SimilarityType.Gaussian:
+        return gaussian_similarity(data_matrix, **kwargs)
+    elif similarity_type == SimilarityType.Euclidean:
+        return euclidean_similarity(data_matrix)
+    elif similarity_type == SimilarityType.Cosine:
+        return cosine_similarity(data_matrix)
+    elif similarity_type == SimilarityType.Customized:
+        return customized_similarity(data_matrix, **kwargs)
+    else:
+        raise ValueError(f"Unknown similarity type: {similarity_type}")
+
+
+
+
+
+
+

@@ -27,15 +27,17 @@ class GraphConstructor:
         np.fill_diagonal(similarity_matrix, 0)  # Delete diagonal values
 
         if self.graph_type == GraphType.EPSILON_NEIGHBORHOOD:
-            return self._construct_epsilon_neighborhood_graph(similarity_matrix)
+            graph = self._construct_epsilon_neighborhood_graph(similarity_matrix)
         elif self.graph_type == GraphType.KNN:
-            return self._construct_knn_graph(similarity_matrix)
+            graph = self._construct_knn_graph(similarity_matrix)
         elif self.graph_type == GraphType.MUTUAL_KNN:
-            return self._construct_mutual_knn_graph(similarity_matrix)
+            graph = self._construct_mutual_knn_graph(similarity_matrix)
         elif self.graph_type == GraphType.FULLY_CONNECTED:
-            return self._construct_fully_connected_graph(similarity_matrix)
+            graph = self._construct_fully_connected_graph(similarity_matrix)
         else:
             raise ValueError(f"Unknown graph type: {self.graph_type}")
+        # Convert sparse matrix to the graph is a sparse matrix
+        return graph.toarray() if isinstance(graph, csr_matrix) else graph
 
     def _construct_epsilon_neighborhood_graph(self, similarity_matrix: np.ndarray) -> csr_matrix:
         epsilon = self.kwargs.get('threshold', 0.5)
