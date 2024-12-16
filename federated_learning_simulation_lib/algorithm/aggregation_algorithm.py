@@ -11,7 +11,7 @@ class AggregationAlgorithm:
     def __init__(self) -> None:
         self._all_worker_data: MutableMapping[int, Message] = {}
         # track workers whose data was not received
-        self.__skipped_workers: set[int] = set()
+        self.skipped_workers: set[int] = set()
         # previous model parameters
         self._old_parameter: ModelParameter | None = None
         # hold the distributed config
@@ -122,7 +122,7 @@ class AggregationAlgorithm:
     ) -> bool:
         if worker_data is None:
             # if no data from a worker, skip its data
-            self.__skipped_workers.add(worker_id)
+            self.skipped_workers.add(worker_id)
             return True
         # store valid data
         self._all_worker_data[worker_id] = worker_data
@@ -133,7 +133,7 @@ class AggregationAlgorithm:
 
     def clear_worker_data(self) -> None:
         self._all_worker_data.clear()
-        self.__skipped_workers.clear()
+        self.skipped_workers.clear()
 
     def exit(self) -> None:
         pass
