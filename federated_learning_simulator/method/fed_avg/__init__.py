@@ -12,6 +12,6 @@ CentralizedAlgorithmFactory.register_algorithm(
     algorithm_cls=FedAVGAlgorithm,
 )
 
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 logger.debug("Registered fed_avg algorithm")

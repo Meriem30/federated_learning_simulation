@@ -1,7 +1,7 @@
 ---
 dataset_name: MNIST
 model_name: LeNet5
-distributed_algorithm: graph_fed_avg
+distributed_algorithm: fed_avg
 optimizer_name: SGD
 worker_number: 5
 batch_size: 64
@@ -12,6 +12,11 @@ learning_rate: 0.01
 dataset_kwargs:
     dataset_type: Vision
     dataset_sampling: iid
+algorithm_kwargs:
+    node_sample_percent: 0.5
+    node_random_selection: False
+    random_client_number: 3
 family_number: 4
-graph_worker: True
+graph_worker: False
+debug: True
 ...

@@ -14,8 +14,14 @@ dataset_kwargs:
     dataset_sampling: iid
 algorithm_kwargs:
     node_sample_percent: 0.5
-    node_random_selection: True
+    node_random_selection: False
     random_client_number: 3
+graph_worker: True
 family_number: 4
-graph_worker: False
+graph_type: KNN
+num_neighbor: 1
+threshold: 0.0
+laplacian_type: RandomWalk
+similarity_function: Gaussian
+debug: True
 ...
