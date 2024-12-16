@@ -21,3 +21,4 @@ torchmetrics
 numpy
 torchvision
 networkx
+scipy
