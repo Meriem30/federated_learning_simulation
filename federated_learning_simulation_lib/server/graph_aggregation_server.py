@@ -46,6 +46,10 @@ class GraphAggregationServer(Server, PerformanceMixin, RoundSelectionMixin):
         return self.config.algorithm_kwargs.get("early_stop", False)
 
     @property
+    def graph_client_states(self):
+        return self._graph_client_states
+
+    @property
     def algorithm(self):
         return self.__algorithm
 
@@ -109,7 +113,7 @@ class GraphAggregationServer(Server, PerformanceMixin, RoundSelectionMixin):
                     self._endpoint.send(worker_id=worker_id, data=data)
             case ParameterMessageBase():
                 # if ParameterMessage or any subclass, perform worker selection
-                selected_workers = self.select_workers()
+                selected_workers = self._select_cluster_workers(list(range(self.worker_number)))
                 if len(selected_workers) < self.config.worker_number:
                     # increment the worker_round if selected < total
                     worker_round = self.round_index + 1
@@ -124,13 +128,14 @@ class GraphAggregationServer(Server, PerformanceMixin, RoundSelectionMixin):
                 if selected_workers:
                     self._endpoint.broadcast(data=result, worker_ids=selected_workers)
                 # for unselected workers, broadcast None
-                unselected_workers = set(range(self.worker_number)) - selected_workers
+                unselected_workers = set(range(self.worker_number)) - set(selected_workers)
                 if unselected_workers:
                     self._endpoint.broadcast(data=None, worker_ids=unselected_workers)
             case _:
                 # if other result type, broadcast to all workers
                 self._endpoint.broadcast(data=result)
         # post-send hook
+        print("this is _sent_result end !")
         self._after_send_result(result=result)
 
     def _server_exit(self) -> None:
@@ -150,7 +155,7 @@ class GraphAggregationServer(Server, PerformanceMixin, RoundSelectionMixin):
         """
         log_debug("before processing worker data, ensure that the server set the algo correctly", self.__algorithm)
         assert 0 <= worker_id < self.worker_number
-        log_debug("getting data from worker %s", worker_id)
+        log_info("getting data from worker %s", worker_id)
         if data is not None:
             if data.end_training:
                 # set the stop flag if the training ended
@@ -170,26 +175,33 @@ class GraphAggregationServer(Server, PerformanceMixin, RoundSelectionMixin):
                         # complete the parameter using the old ones
                         data.complete(old_parameter)
                     data.parameter = tensor_to(data.parameter, device="cpu")
-        if data.other_data is not None:
+            assert data.other_data
             client_state = data.other_data["node_state"]
             log_info("server has extracted the worker %s state", worker_id)
             log_info(repr(client_state))
             self._graph_client_states[worker_id] = client_state
             self._network.nodes[worker_id]['state'] = client_state
-            log_debug(f"network updated with the new worker {worker_id} state")
+            log_info("server network updated with the new worker %s state", worker_id)
         # process the worker data using the aggregation algorithm
+        log_info("this is before calling process_worker_data of the algo")
         self.__algorithm.process_worker_data(worker_id=worker_id, worker_data=data)
+        log_info("this is after calling process_worker_data of the algo")
         # add the ID of this worker to the set of processed worker
         self.__worker_flag.add(worker_id)
         if len(self.__worker_flag) == self.worker_number:
+            print(f"here is after processing all worker data: len worker_flag ({len(self.__worker_flag)})"
+                  f" len worker_number({self.worker_number})")
             # aggregate the data from all worker once the data from them is processed
             result = self._aggregate_worker_data()
             # assert result have a "family_assignment" key in other_data
+            log_info("this is the other data %s after aggregation and family processing", result.other_data)
             assert result.other_data is not None
             # update the stored graph data stored in the server (we may use _graph_client_states to assign families)
             self._update_graph_data(result)
             # send the aggregated model to server
+            print("here is before calling _send_result function")
             self._send_result(result)
+            print("here is after calling _send_result function")
             # clear the set of worker flag
             self.__worker_flag.clear()
         else:
