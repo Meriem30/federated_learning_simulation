@@ -1,15 +1,18 @@
 import random
 from typing import Any, MutableMapping
 
+import numpy as np
 import torch
 from other_libs.log import log_error, log_debug, log_info
 from torch_kit import ModelParameter
 
 from ..message import Message, ParameterMessage
 from .aggregation_algorithm import AggregationAlgorithm
+from .spectral_clustering import SpectralClustering, SimilarityType, GraphType, LaplacianType
 
 
 class GraphFedAVGAlgorithm(AggregationAlgorithm):
+
     def __init__(self) -> None:
         super().__init__()
         # whether to accumulate the updates from the workers or compute the average directly
@@ -19,13 +22,18 @@ class GraphFedAVGAlgorithm(AggregationAlgorithm):
         # dict to store total weights for each model
         self.__total_weights: dict[str, float] = {}
         # store accumulated parameter  updates
+        # track workers whose data was not received
+        self.skipped_workers: set[int] = set()
         self.__parameter: ModelParameter = {}
+        self.__client_states_array = None
         self._assign_family: bool = True
+        self._enable_clustering: bool = True
+        self._enum_converted: bool = False
 
     def process_worker_data(
-        self,
-        worker_id: int,
-        worker_data: Message | None,
+            self,
+            worker_id: int,
+            worker_data: Message | None,
     ) -> bool:
         """
             add more functionalities to the parent method
@@ -66,12 +74,12 @@ class GraphFedAVGAlgorithm(AggregationAlgorithm):
         return True
 
     def _get_weight(
-        self, worker_data: ParameterMessage, name: str, parameter: Any
+            self, worker_data: ParameterMessage, name: str, parameter: Any
     ) -> Any:
         return worker_data.aggregation_weight
 
     def _apply_total_weight(
-        self, name: str, parameter: torch.Tensor, total_weight: Any
+            self, name: str, parameter: torch.Tensor, total_weight: Any
     ) -> torch.Tensor:
         """
             device the parameter tensor by the total weight to compute average
@@ -84,7 +92,7 @@ class GraphFedAVGAlgorithm(AggregationAlgorithm):
             parameter = self.aggregate_parameter(self._all_worker_data)
         else:
             # if required, process accumulated parameter & normalize them using total weight
-            log_debug('this is graph fed_avg algorithm about to aggregate parameters')
+            log_info("this is graph fed_avg algorithm about to aggregate parameters")
             assert self.__parameter
             parameter = self.__parameter
             self.__parameter = {}
@@ -95,15 +103,21 @@ class GraphFedAVGAlgorithm(AggregationAlgorithm):
                 )
                 assert not parameter[k].isnan().any().cpu()
             self.__total_weights = {}
+        # ADDED to handle spectral_clustering
+        clustering_results = None
+        if self._enable_clustering:
+            self.__client_states_array = self._create_workers_matrix(self._all_worker_data)
+            # call the appropriate class,function passing the matrix of data points (client_states)
+            clustering_results = self._perform_clustering(self.__client_states_array)
         other_data: dict[str, Any] = {}
         if self.aggregate_loss:
             # if true, compute aggregated loss values
             other_data |= self.__aggregate_loss(self._all_worker_data)
         # ADDED to handle graphs
         if self._assign_family:
-            log_info("update family assignments for all workers: %s",
-                     self._assign_family)
-            other_data |= self.__update_family_assignment(self._all_worker_data)
+            log_info("update family is enabled for all workers")
+            #log_info("this is other data before calling _update_family_assignment function %s", self._all_worker_data)
+            other_data |= self.__update_family_assignment(self._all_worker_data, clustering_results)
             log_debug("family assignments updated by graph fed_avg algorithm")
         # ensure consistency
         other_data |= self.__check_and_reduce_other_data(self._all_worker_data)
@@ -115,15 +129,57 @@ class GraphFedAVGAlgorithm(AggregationAlgorithm):
             other_data=other_data,
         )
 
+    def _create_workers_matrix(self, all_worker_data: MutableMapping[int, Message]) -> np.ndarray:
+        """Extract client states and use them to initialize a numpy matrix """
+        log_info("here is create worker matrix")
+        num_clients = self.config.worker_number
+        log_info("workers number: %s", num_clients)
+        first_key = next(iter(all_worker_data))
+        num_properties = all_worker_data[first_key].other_data["node_state"].get_number_of_properties()
+        log_info("state worker properties number: %s", num_properties)
+
+        # initialize a zero matrix of shape (num_clients, num_properties)
+        client_states = np.zeros((num_clients, num_properties))
+        log_info("client_states before uploading client info: \n %s", client_states)
+
+        # collect data from participating clients
+        # extract the participating_clients_ids for that round
+        participating_clients = np.array([worker_id for worker_id in all_worker_data.keys()
+                                          if worker_id not in self.skipped_workers])
+        if len(participating_clients) > 0:
+            states = np.array([
+                [float(all_worker_data[worker_id].other_data["node_state"]._battery),
+                 float(all_worker_data[worker_id].other_data["node_state"]._energy_consumption),
+                 float(all_worker_data[worker_id].other_data["node_state"]._memory_occupation)]
+                for worker_id in participating_clients
+            ])
+            client_states[participating_clients, :] = states
+
+        # update previous states in Graph_Aggregation_Server not here
+        # for worker_id in participating_clients:
+        #         self.graph_client_states[worker_id] = all_worker_data[worker_id].other_data["node_state"]
+
+        # Retain previous states for clients not in the current round
+        # missing_clients = np.setdiff1d(np.arange(num_clients), participating_clients)
+        # for worker_id in missing_clients:
+            # if worker_id in self.previous_states:
+            #    prev_state = self.previous_states[worker_id]
+            #    client_states[worker_id, 0] = float(prev_state._battery)
+            #    client_states[worker_id, 1] = float(prev_state._energy_consumption)
+            #    client_states[worker_id, 2] = float(prev_state._memory_occupation)
+
+        log_info("Here is client states matrix \n %s", client_states)
+        return client_states
+
     @classmethod
-    def __update_family_assignment(cls, all_worker_data: MutableMapping[int, Message]) -> dict[str, dict]:
+    def __update_family_assignment(cls, all_worker_data: MutableMapping[int, Message], results: np.ndarray) -> dict[str, dict]:
         assert all_worker_data
         family_data = {}
         for worker_data in all_worker_data.values():
             if "node_state" in worker_data.other_data:
-                family_data["family_assignment"] = cls._compute_new_families(all_worker_data)
+                family_data["family_assignment"] = cls._assign_new_families(all_worker_data, results)
             break
-        log_debug("new family assignments dict {worker : family} added by the graph algo")
+        log_info("new family assignments dict %s added by the graph algo", family_data)
 
         for worker_data in all_worker_data.values():
             if "node_state" in worker_data.other_data:
@@ -133,14 +189,13 @@ class GraphFedAVGAlgorithm(AggregationAlgorithm):
         return family_data
 
     @classmethod
-    def _compute_new_families(cls, all_worker_data: MutableMapping[int, Message]) -> dict[int, int]:
+    def _assign_new_families(cls, all_worker_data: MutableMapping[int, Message], families: np.ndarray) -> dict[int, int]:
 
         family_dict = {}
-        worker_id = 0
         # log_debug("passed arg type for compute_new_families", type(all_worker_data)) -> dict
-        for worker_data in all_worker_data.values():
-            family_dict[worker_id] = cls._compute_new_family(worker_data)
-            worker_id += 1
+        for worker_id, worker_data in all_worker_data.items():
+            family_dict[worker_id] = int(families[worker_id])
+        log_info("this is the family dict after updating the families %s", family_dict)
         return family_dict
 
     @classmethod
@@ -148,8 +203,63 @@ class GraphFedAVGAlgorithm(AggregationAlgorithm):
         # logic for calculating new family
         state = worker_data.other_data["node_state"]
         current_family = state.family
+        log_info("this is the worker family %s", current_family)
         new_family = random.choice(list(range(1, 4)))
+        log_info("this is the new worker family %s", new_family)
         return new_family
+
+    # ADDED to handle spectral clustering
+    def _process_clustering_results(self, labels):
+        # process the clustering labels
+        # use `labels` to assign workers to different groups/families or whatever the final use is
+        for worker_id, label in enumerate(labels):
+            # Example: assign the client to a new family or group based on the clustering result
+            self._graph_client_states[worker_id].set_family(label)
+            log_info(f"Worker {worker_id} assigned to family {label}")
+
+    # ADDED to handle spectral clustering
+    def _convert_enum_properties(self) -> None:
+        enum_mappings = {
+            'similarity_function': SimilarityType,
+            'graph_type': GraphType,
+            'laplacian_type': LaplacianType,
+            # other mappings of enum types can be added here as needed
+        }
+
+        for attr, enum_type in enum_mappings.items():
+            if hasattr(self.config, attr):
+                value = getattr(self.config, attr)
+                try:
+                    enum_value = enum_type[value]
+                    setattr(self.config, attr, enum_value)
+                    self._enum_converted = True
+                except KeyError:
+                    raise ValueError(f"Unknown {attr}: {value}")
+
+    # ADDED to handle spectral clustering
+    def _perform_clustering(self, __client_states_array) -> np.array:
+        # convert the enum-like config attrs to have the enum member number
+        if not self._enum_converted:
+            self._convert_enum_properties()
+        # initialize the spectral clustering graph
+        clustering = SpectralClustering(
+            graph_type=self.config.graph_type,  # for graph construction
+            num_neighbors=self.config.num_neighbor,  # Number of neighbors for KNN
+            threshold=self.config.threshold,
+            laplacian_type=self.config.laplacian_type,  # Type of Laplacian
+            similarity_function=self.config.similarity_function,  # Similarity function
+            num_clusters=self.config.family_number  # Number of clusters (K)
+        )
+
+        # Perform spectral clustering and get the result
+        labels = clustering.fit(self.__client_states_array)
+        log_info(" this is the labels variable returned from the clustering : %s", labels)
+
+        # Process the result
+        #self._process_clustering_results(labels)
+        return labels
+
+
 
     @classmethod
     def aggregate_parameter(
@@ -189,7 +299,7 @@ class GraphFedAVGAlgorithm(AggregationAlgorithm):
                     )
             break
         assert loss_dict
-        #for worker_data in all_worker_data.values():
+        # for worker_data in all_worker_data.values():
         #    for loss_type in ("training_loss", "validation_loss"):
         #        # remove loss data from other_data
         #        worker_data.other_data.pop(loss_type, None)

@@ -43,7 +43,7 @@ class FedAVGAlgorithm(AggregationAlgorithm):
             return True
         if not isinstance(worker_data, ParameterMessage):
             return True
-        # if the all worker data is not None
+        # if the all worker data is not None and is instance of ParameterMessage
         for k, v in worker_data.parameter.items():
             # iterate over each parameter update from the worker and apply the weight
             assert not v.isnan().any().cpu()
