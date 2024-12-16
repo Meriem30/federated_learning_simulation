@@ -11,13 +11,15 @@ from torch_kit import Inferencer, MachineLearningPhase, ModelParameter
 from ..executor import Executor, ExecutorContext
 from ..message import Message, ParameterMessage
 from .round_selection_mixin import RoundSelectionMixin
+from .node_selection_mixin import NodeSelectionMixin
 
 
-class Server(Executor, RoundSelectionMixin):
+class Server(Executor, RoundSelectionMixin, NodeSelectionMixin):
     """
         extend both Executor and RoundSelectionMixin classes
         handle communication, selection, evaluation, processing
     """
+
     def __init__(self, task_id: int, endpoint: ServerEndpoint, **kwargs: Any) -> None:
         # initialize the server with a given task_id
         name: str = "server"
@@ -37,6 +39,14 @@ class Server(Executor, RoundSelectionMixin):
             return the number of workers configured with the task
         """
         return self.config.worker_number
+
+    @property
+    def selected_worker_number(self) -> int:
+        if not self.config.algorithm_kwargs.get("node_sample_percent", 1.0):
+            return self.config.algorithm_kwargs.get("node_sample_percent") * self.worker_number
+        elif not self.config.algorithm_kwargs.get("random_client_number", True):
+            return self.config.algorithm_kwargs.get("random_client_number")
+        return self.worker_number
 
     def get_tester(self, copy_tester: bool = False) -> Inferencer:
         """
@@ -124,22 +134,21 @@ class Server(Executor, RoundSelectionMixin):
         worker_set: set = set()
         while not self._stopped():
             if not worker_set:
+                # worker_set = set(range(min(self._endpoint.worker_num, self.selected_worker_number)))
                 worker_set = set(range(self._endpoint.worker_num))
             assert self._endpoint.worker_num == self.config.worker_number
             for worker_id in copy.copy(worker_set):
                 has_data: bool = self._endpoint.has_data(worker_id)
                 if has_data:
-                    log_debug(
-                        "get result from %s worker_num %s",
-                        worker_id,
-                        self._endpoint.worker_num,
-                    )
+                    log_info(
+                        "get result from worker_id %s",
+                        worker_id,)
                     self._process_worker_data(
                         worker_id, self._endpoint.get(worker_id=worker_id)
                     )
                     worker_set.remove(worker_id)
             if worker_set:
-                log_debug("wait workers %s", worker_set)
+                log_info("wait for other %s workers ", len(worker_set))
 
             if worker_set and not self._stopped():
                 time.sleep(1)
