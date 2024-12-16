@@ -105,7 +105,7 @@ class AggregationServer(Server, PerformanceMixin, RoundSelectionMixin):
                     self._endpoint.send(worker_id=worker_id, data=data)
             case ParameterMessageBase():
                 # if ParameterMessage or any subclass, perform worker selection
-                selected_workers = self.select_workers()
+                selected_workers = self._select_cluster_workers(list(range(self.worker_number)))
                 if len(selected_workers) < self.config.worker_number:
                     # increment the worker_round if selected < total
                     worker_round = self.round_index + 1
@@ -242,3 +242,7 @@ class AggregationServer(Server, PerformanceMixin, RoundSelectionMixin):
             check the maximum round number
         """
         return self.round_index > self.config.round or self._stop
+
+
+
+
