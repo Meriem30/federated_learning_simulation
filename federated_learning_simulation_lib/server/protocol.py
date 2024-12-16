@@ -16,6 +16,10 @@ class AggregationServerProtocol(Protocol):
     def worker_number(self) -> int:
         ...
 
+    @property
+    def selected_worker_number(self) -> int:
+        ...
+
     def get_metric(
         self,
         parameter: ModelParameter | ParameterMessage,
