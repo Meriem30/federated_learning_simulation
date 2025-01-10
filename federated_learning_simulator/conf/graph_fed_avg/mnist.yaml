@@ -24,4 +24,5 @@ threshold: 0.0
 laplacian_type: RandomWalk
 similarity_function: Gaussian
 debug: True
+save_performance_metric: True
 ...
