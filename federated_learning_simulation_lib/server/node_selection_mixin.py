@@ -10,10 +10,15 @@ from torch_kit import (
 
 )
 
-from .graph_protocol import GraphAggregationWorkerProtocol
+from federated_learning_simulation_lib.worker.protocol import GraphAggregationWorkerProtocol
+from federated_learning_simulation_lib.worker.protocol import WorkerProtocol
+from torch_kit import Trainer
 
 
-class NodeSelectionMixin(GraphAggregationWorkerProtocol):
+class NodeSelectionMixin(GraphAggregationWorkerProtocol, WorkerProtocol):
+    def __init__(self):
+        self.append_node_selection_hook()
+
     hook_name = "choose_graph_nodes"
     selection_result: dict[int, set[int]] = {}
 
@@ -21,7 +26,7 @@ class NodeSelectionMixin(GraphAggregationWorkerProtocol):
         self.trainer.remove_named_hook(name=self.hook_name)
 
     def append_node_selection_hook(self) -> None:
-        #self.remove_node_selection_hook()
+        self.remove_node_selection_hook()
         self.trainer.append_named_hook(
             hook_point=ExecutorHookPoint.BEFORE_EPOCH,
             name=self.hook_name,
@@ -35,7 +40,7 @@ class NodeSelectionMixin(GraphAggregationWorkerProtocol):
         warmup_rounds: int = self.config.algorithm_kwargs.get("warmup_rounds", 0)
         if self.round_index + 1 <= warmup_rounds:
             return
-        sample_indices = self._sample_nodes()
+        sample_indices = self._sample_nodes(self.trainer)
         input_nodes = torch.tensor(sample_indices, dtype=torch.long)
 
         self.trainer.update_dataloader_kwargs(
@@ -44,7 +49,7 @@ class NodeSelectionMixin(GraphAggregationWorkerProtocol):
 
     def _sample_nodes(self) -> list[int]:
         # reset any previously returned node selection list
-        self.trainer.update_dataloader_kwargs(pyg_input_nodes={})
+        # trainer.update_dataloader_kwargs(pyg_input_nodes={})
         # retrieve the percentage of nodes to be sampled
         sample_percent: float = self.config.algorithm_kwargs.get(
             "node_sample_percent", 1.0
