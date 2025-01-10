@@ -1,6 +1,7 @@
 import copy
 import functools
 from typing import Self
+from other_libs.log import log_debug
 
 from ..ml_type import MachineLearningPhase
 from .collection import DatasetCollection
@@ -52,6 +53,7 @@ class ClassificationDatasetCollection:
             #    if self.__dc.has_dataset(phase):
             #        labels |= self.__dc.get_dataset_util(phase).get_labels()
             labels = self.__dc.get_dataset_util(phase=MachineLearningPhase.Training).get_labels()
+            log_debug("labels", labels)
             return labels
 
         if not use_cache:

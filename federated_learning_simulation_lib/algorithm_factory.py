@@ -2,7 +2,7 @@ import functools
 import os
 from typing import Callable
 
-from other_libs.log import log_warning
+from other_libs.log import log_warning, log_debug
 from other_libs.system_info import OSType, get_operating_system_type
 from other_libs.topology.central_topology import (
     ProcessPipeCentralTopology, ProcessQueueCentralTopology)
@@ -152,9 +152,11 @@ def get_worker_config(
     """
     # create and  initialize practitioner if not provided
     if practitioners is None:
+        log_debug("creating practitioners ...")
         practitioners = config.create_practitioners()
     else:
         # set the worker number and sort practitioner by their IDs
+        log_debug("we already have practitioners:", len(practitioners))
         config.worker_number = len(practitioners)
         for worker_id, practitioner in enumerate(
             sorted(practitioners, key=lambda p: p.id)

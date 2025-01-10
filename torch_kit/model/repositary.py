@@ -2,7 +2,7 @@ import functools
 
 import torch
 import torch.nn
-from other_libs.log import log_debug
+from other_libs.log import log_debug, log_info
 from other_libs.reflection import get_kwarg_names
 
 from ..ml_type import DatasetType
@@ -36,7 +36,7 @@ def get_torch_hub_model_info(repo: str) -> dict:
                 "repo": repo,
             }
         else:
-            log_debug("ignore model_name %s", model_name)
+            log_info("ignore model_name %s", model_name)
 
     return model_info
 

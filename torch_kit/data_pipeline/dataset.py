@@ -5,6 +5,7 @@ import torch.utils.data
 import torch.utils.data.datapipes
 import torch.utils.data.dataset
 
+from other_libs.log import log_debug
 from ..ml_type import OptionalIndicesType
 
 
@@ -144,6 +145,7 @@ def subset_dp(
     # list(dict(select_item(dataset, indices)).values()): Extracts the values from the dict
     # and converts them into a list
     # torch.utils.data.datapipes.map.SequenceWrapper: Wraps this list into a SequenceWrapper (a type of MapDataPipe)
+    log_debug("getting data subsets ...")
     return torch.utils.data.datapipes.map.SequenceWrapper(
         list(dict(select_item(dataset, indices)).values()), deepcopy=False
     )

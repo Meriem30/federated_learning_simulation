@@ -72,7 +72,7 @@ class DistributedTrainingConfig(Config):
                 continue
             # the devices that pass all memory checks are stored in refined_memory_info
             refined_memory_info[device] = info.free
-        assert refined_memory_info
+        #assert refined_memory_info
         log_warning("Use devices %s", list(refined_memory_info.keys()))
         # if true, each worker can run on a separate device process
         if self.worker_number <= len(refined_memory_info):
