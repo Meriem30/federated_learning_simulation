@@ -26,7 +26,8 @@ class DatasetSampler:
         """
             Compute and return a dict: key (idx) & value ( set of sample labels)
         """
-        return dict(self.__dataset_util.get_batch_labels())
+        labels_dict  =dict(self.__dataset_util.get_batch_labels())
+        return labels_dict
 
     @functools.cached_property
     def label_sample_dict(self) -> dict[Any, set]:
@@ -141,7 +142,9 @@ class DatasetSampler:
         assert parts
 
         if labels is None:
+            #print("labels are non")
             labels = list(self.label_sample_dict.keys())
+            log_debug("labels: %", labels)
         return self.split_indices(
             part_proportions=[{label: part for label in labels} for part in parts],
             labels=labels,

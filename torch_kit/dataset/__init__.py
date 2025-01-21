@@ -1,7 +1,7 @@
 import json
 import os
 
-from other_libs.log import log_info
+from other_libs.log import log_info, log_debug
 
 from ..data_pipeline.common import replace_target
 from ..ml_type import DatasetType, Factory, MachineLearningPhase, TransformType
@@ -26,6 +26,7 @@ def create_dataset_collection(
     if dataset_kwargs is None:
         dataset_kwargs = {}
     with DatasetCollection.lock:
+        log_debug("starting the outer function create_dataset_collection")
         res = get_dataset(
             name=name,
             dataset_kwargs=dataset_kwargs,
@@ -34,9 +35,12 @@ def create_dataset_collection(
         if res is None:
             raise NotImplementedError(name)
         dataset_type, datasets = res
+        log_info("this is dataset_type after calling get_dataset method: %s ", dataset_type)
+        print("this is datasets after calling get_dataset method: ", datasets)
         constructor = global_dataset_collection_factory.get(dataset_type)
         if constructor is None:
             constructor = DatasetCollection
+            log_info("after initializing, our constructor func type: %s ", type(constructor))
         dc: DatasetCollection = constructor(
             datasets=datasets,
             dataset_type=dataset_type,
@@ -97,7 +101,8 @@ class DatasetCollectionConfig:
                 assert real_dataset_type is not None
                 self.dataset_kwargs["dataset_type"] = real_dataset_type
             assert isinstance(self.dataset_kwargs["dataset_type"], DatasetType)
-
+        log_info("the dataset_type is set correctly along with other dataset args: %s", self.dataset_kwargs.items())
+        log_info("about to call the create_dataset_collection from the DatasetCollectionConfig class with arg 'name' : %s ", self.dataset_name)
         dc = create_dataset_collection(
             name=self.dataset_name, dataset_kwargs=self.dataset_kwargs
         )
@@ -108,8 +113,9 @@ class DatasetCollectionConfig:
     def __transform_training_dataset(self, dc, save_dir: str | None = None) -> None:
         subset_indices = None
         dataset_util = dc.get_dataset_util(phase=MachineLearningPhase.Training)
+        dataset_sampler = DatasetSampler(dataset_util)
         if self.training_dataset_percentage is not None:
-            subset_dict = dataset_util.iid_sample(self.training_dataset_percentage)
+            subset_dict = dataset_sampler.iid_sample_indices(self.training_dataset_percentage)
             subset_indices = sum(subset_dict.values(), [])
             assert save_dir is not None
             with open(
