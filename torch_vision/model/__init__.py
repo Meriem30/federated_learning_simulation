@@ -2,7 +2,6 @@ import functools
 
 from torch_kit import DatasetCollection, DatasetType, Factory
 from torch_kit.model import create_model
-                             # ,global_model_evaluator_factory, global_model_factory
 from torch_kit.model.repositary import (get_model_info,
                                         get_torch_hub_model_info)
 
