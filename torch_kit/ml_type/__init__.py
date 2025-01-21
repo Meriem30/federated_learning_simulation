@@ -45,6 +45,7 @@ class ModelType(StrEnum):
 
 class DatasetType(StrEnum):
     Vision = auto()
+    Medical= auto()
     Text = auto()
     Graph = auto()
     Audio = auto()
