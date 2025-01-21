@@ -35,6 +35,7 @@ class Config(ConfigBase):
         dc = self.dc_config.create_dataset_collection(
             save_dir=self.get_save_dir(),
         )
+        log_debug("this is the returned dc : %s ", dc)
         return dc
 
     def create_trainer(

@@ -12,8 +12,13 @@ from .tensor import (cat_tensor_dict, cat_tensors_to_vector, tensor_clone,
                      tensor_to)
 from .trainer import *
 
-from .registration import register_vision_transforms, register_vision_datasets, register_vision_models
+from .registration import register_vision_transforms, register_vision_datasets, register_vision_models, register_medical_transforms, register_medical_datasets, register_medical_models
 
 register_vision_datasets()
 register_vision_transforms()
 register_vision_models()
+
+
+register_medical_datasets()
+register_medical_transforms()
+register_medical_models()
