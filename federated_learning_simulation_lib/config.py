@@ -197,6 +197,8 @@ def import_dependencies(dataset_type: str | None = None) -> None:
     libs = ["torch_text", "torch_vision"]
     if dataset_type is not None:
         match dataset_type.lower():
+            case "medical":
+                libs = ["torch_medical"]
             case "vision":
                 libs = ["torch_vision"]
             case "text":
