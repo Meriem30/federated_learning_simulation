@@ -6,9 +6,9 @@ from other_libs.log import log_debug
 class ClientState:
     def __init__(self, worker_id: int) -> None:
         self._client_id = worker_id
-        self._memory_occupation: float = 0.0
-        self._energy_consumption: float = 0.0
-        self._battery: int = 100
+        self._memory_occupation: float = random.uniform(1,0.1)
+        self._energy_consumption: float = random.uniform(1,0.1)
+        self._battery: int = random.random()
         self._family: int = 0
 
     def initialize_state(self, families: int) -> None:
