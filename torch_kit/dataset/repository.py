@@ -43,6 +43,11 @@ def __prepare_dataset_kwargs(
     def get_dataset_kwargs_of_phase(
         dataset_type: DatasetType, phase: MachineLearningPhase
     ) -> dict | None:
+        # ADDED to handle pneumonia
+        if "csv_file" in constructor_kwargs and "csv_file" not in new_dataset_kwargs:
+            new_dataset_kwargs["csv_file"] = os.path.join(os.path.expanduser("~"), "nvx_data_test.csv")
+        if "image_dir" in constructor_kwargs and "image_dir" not in new_dataset_kwargs:
+            new_dataset_kwargs["image_dir"] = os.path.join(os.path.expanduser("~"), "rsna-pneumonia-detection-challenge/stage_2_train_images/")
         if "cache_dir" in constructor_kwargs and "cache_dir" not in new_dataset_kwargs:
             new_dataset_kwargs["cache_dir"] = cache_dir
         if "root" in constructor_kwargs and "root" not in new_dataset_kwargs:
@@ -106,7 +111,9 @@ def __create_dataset(
 ) -> tuple[DatasetType, dict] | None:
     if dataset_kwargs is None:
         dataset_kwargs = {}
-    constructor_kwargs = get_kwarg_names(dataset_constructor)
+    constructor_kwargs = get_kwarg_names(dataset_constructor.__init__)
+    log_info("here is constructor kwargs: %s ", constructor_kwargs)
+    log_info("here is cache_dir: %s ", cache_dir)
     dataset_kwargs_fun = __prepare_dataset_kwargs(
         constructor_kwargs=constructor_kwargs,
         dataset_kwargs=dataset_kwargs,
@@ -127,6 +134,7 @@ def __create_dataset(
                 cache_key = (dataset_name, dataset_type, phase)
                 dataset = __dataset_cache.get(cache_key, None)
                 if dataset is None:
+                    log_info("*************dataset was not found in cache")
                     dataset = dataset_constructor(**processed_dataset_kwargs)
                     if dataset_type == DatasetType.Graph:
                         assert len(dataset) == 1
@@ -190,7 +198,7 @@ def get_dataset(
     similar_names = []
     dataset_types = list(DatasetType)
     cached_dataset_type_file = os.path.join(
-        cache_dir, ".torch_kit_dataset_type"
+        cache_dir, "torch_kit_dataset_type"
     )
     if os.path.isfile(cached_dataset_type_file):
         with open(cached_dataset_type_file, "rb") as f:
@@ -212,7 +220,16 @@ def get_dataset(
         constructor = __global_dataset_constructors[dataset_type].get(
             name, case_sensitive=True, cache_dir=cache_dir
         )
+        log_info("the standard constructor being initialized by getting it from __global_dataset_constructors %s ", constructor)
+        log_info("this is what we have in __global_dataset_constructors %s ",__global_dataset_constructors.items() )
         if constructor is not None:
+            log_info("constructor is NOT None")
+            log_info("printing parameter before calling __create_dataset \n dataset_name= %s \n dataset_type= %s \n dataset_constructor= %s \n dataset_kwargs= %s \n cache_dir= %s \n",
+                     name,
+                     dataset_type,
+                     constructor,
+                     dataset_kwargs,
+                     cache_dir)
             return __create_dataset(
                 dataset_name=name,
                 dataset_type=dataset_type,
