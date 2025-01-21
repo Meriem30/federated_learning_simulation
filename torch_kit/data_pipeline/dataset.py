@@ -5,7 +5,7 @@ import torch.utils.data
 import torch.utils.data.datapipes
 import torch.utils.data.dataset
 
-from other_libs.log import log_debug
+from other_libs.log import log_debug, log_info
 from ..ml_type import OptionalIndicesType
 
 
@@ -28,7 +28,10 @@ def get_dataset_size(dataset: Any) -> int:
             return mask.sum()
     # if none of the above, but dataset has len attribute, return it
     if hasattr(dataset, "__len__"):
-        return len(dataset)
+        log_debug("returning the len attr")
+        log_debug("dataset type %s ", type(dataset))
+        len_data = len(dataset)
+        return len_data
     match dataset:
         # if data is IterableDataset() to be loaded on the fly, rather than fully loaded in memory
         case torch.utils.data.IterableDataset():
@@ -79,8 +82,12 @@ def dataset_with_indices(
         case list():
             return dataset
         # Convert the iterable dataset into a data pipe
+
         case torch.utils.data.IterableDataset():
-            dataset = torch.utils.data.datapipes.iter.IterableWrapper(dataset)
+            # MODIFIED to handle medical pneumonia data
+            #dataset = torch.utils.data.datapipes.iter.IterableWrapper(dataset)
+            return dataset
+
     # Initialize another block of pattern matching to further process the new dataset
     match dataset:
         # If it is an instance of IterDataPipe call enumerate to add indices to each item
@@ -124,6 +131,7 @@ def select_item(dataset: Any, indices: OptionalIndicesType = None) -> Generator:
                         indices.remove(idx)
         # Default case: return all the dataset element
         case _:
+            log_info("get all the dataset samples")
             if indices is None:
                 indices = list(range(get_dataset_size(dataset)))
             # Iterate over indices and yield (idx, data) for each index in the set
@@ -145,7 +153,7 @@ def subset_dp(
     # list(dict(select_item(dataset, indices)).values()): Extracts the values from the dict
     # and converts them into a list
     # torch.utils.data.datapipes.map.SequenceWrapper: Wraps this list into a SequenceWrapper (a type of MapDataPipe)
-    log_debug("getting data subsets ...")
+    log_info("getting data subsets ...")
     return torch.utils.data.datapipes.map.SequenceWrapper(
         list(dict(select_item(dataset, indices)).values()), deepcopy=False
     )
