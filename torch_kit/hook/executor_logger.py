@@ -12,8 +12,8 @@ class ExecutorLogger(Hook):
         log_info("dataset is %s", executor.dataset_collection.name)
         log_info("device is %s", executor.device)
         log_info("model type is %s", executor.model.__class__)
-        log_debug("model is %s", executor.model)
-        # log_debug("loss function is %s", executor.loss_fun)
+        log_info("model is %s", executor.model)
+        log_info("loss function is %s", executor.loss_fun)
         log_info(
             "parameter number is %s",
             sum(a.numel() for a in executor.model_util.get_parameter_seq(detach=False)),
