@@ -24,7 +24,7 @@ from .util import DatasetUtil, global_dataset_util_factor
 class DatasetCollection:
     def __init__(
         self,
-        datasets: dict[MachineLearningPhase, torch.utils.data.Dataset],
+        datasets: dict[MachineLearningPhase, Any], # MODIFIED to handle pneumonia # torch.utils.data.Dataset
         dataset_type: DatasetType | None = None,
         name: str | None = None,
         dataset_kwargs: dict | None = None,
@@ -32,7 +32,7 @@ class DatasetCollection:
     ) -> None:
         self.__name: str = "" if name is None else name
         # Initialize a dict mapping a 'MachineLearningPhase' to 'torch.utils.data.Dataset' obj
-        self.__datasets: dict[MachineLearningPhase, torch.utils.data.Dataset] = datasets
+        self.__datasets: dict[MachineLearningPhase, Any] = datasets # torch.utils.data.Dataset
         # Add indices to dataset if indicated
         if add_index:
             for k, v in self.__datasets.items():
@@ -184,7 +184,7 @@ class DatasetCollection:
         return dataset_dir
 
     def _get_dataset_cache_dir(self) -> str:
-        cache_dir = os.path.join(self.get_dataset_dir(self.name), ".cache")
+        cache_dir = os.path.join(self.get_dataset_dir(self.name), "cache")
         if not os.path.isdir(cache_dir):
             os.makedirs(cache_dir, exist_ok=True)
         return cache_dir
@@ -217,6 +217,7 @@ class DatasetCollection:
         assert parts
         log_debug("split %s dataset for %s", from_phase, self.name)
         part_list = list(parts.items())
+        #print("part_list", part_list)
 
         sampler = DatasetSampler(dataset_util=self.get_dataset_util(phase=from_phase))
         datasets = sampler.iid_split([part for (_, part) in part_list])
@@ -237,3 +238,4 @@ class DatasetCollection:
             assert self.name is not None
             cache_dir = self._get_dataset_cache_dir()
             return get_cached_data(os.path.join(cache_dir, file), computation_fun)
+
