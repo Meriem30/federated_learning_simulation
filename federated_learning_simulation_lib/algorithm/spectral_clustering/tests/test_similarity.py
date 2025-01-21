@@ -3,6 +3,8 @@ import sys
 import unittest
 import numpy as np
 
+from other_libs.log import log_debug
+
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from similarity import (
@@ -35,12 +37,12 @@ class TestSimilarityFunctions(unittest.TestCase):
 
     def test_gaussian_similarity(self):
         sim_matrix = gaussian_similarity(self.data_matrix, sigma=self.sigma)
-        print("Gaussian Similarity Matrix:\n", sim_matrix)
+        log_debug("Gaussian Similarity Matrix:\n %s ", sim_matrix)
         self.assertTrue(self.check_diagonal_zero(sim_matrix), "Gaussian similarity matrix diagonal is not zero")
 
     def test_euclidean_similarity(self):
         sim_matrix = euclidean_similarity(self.data_matrix)
-        print("Euclidean Similarity Matrix:\n", sim_matrix)
+        log_debug("Euclidean Similarity Matrix:\n %s ", sim_matrix)
         self.assertTrue(self.check_diagonal_zero(sim_matrix), "Euclidean similarity matrix diagonal is not zero")
 
     def test_cosine_similarity(self):
@@ -49,7 +51,7 @@ class TestSimilarityFunctions(unittest.TestCase):
 
     def test_customized_similarity(self):
         sim_matrix = customized_similarity(self.data_matrix, weights=self.weights, sigma=self.sigma)
-        print("Cosine Similarity Matrix:\n", sim_matrix)
+        log_debug("Cosine Similarity Matrix:\n %s", sim_matrix)
         self.assertTrue(self.check_diagonal_zero(sim_matrix), "Customized similarity matrix diagonal is not zero")
 
     def test_compute_similarity_matrix(self):

@@ -12,6 +12,7 @@ learning_rate: 0.01
 dataset_kwargs:
     dataset_type: Vision
     dataset_sampling: iid
+    train: True
 algorithm_kwargs:
     node_sample_percent: 0.5
     node_random_selection: False

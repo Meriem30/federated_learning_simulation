@@ -20,7 +20,7 @@ global_config: DistributedTrainingConfig = DistributedTrainingConfig()
 # import_dependencies()
 
 
-@hydra.main(config_path="./conf", config_name="graph_fed_avg/mnist.yaml", version_base=None)
+@hydra.main(config_path="./conf", config_name="graph_fed_avg/pneumonia.yaml", version_base=None)
 def load_config(conf) -> None:
     global global_config
     global_config = __load_config(
@@ -31,6 +31,6 @@ def load_config(conf) -> None:
 if __name__ == "__main__":
     # call the load function
     load_config()
-    print("this is the conf from simulator", global_config.dc_config.dataset_name)
+    print("this is the conf from simulator :", global_config.dc_config.dataset_name)
     # start training
     train(config=global_config)

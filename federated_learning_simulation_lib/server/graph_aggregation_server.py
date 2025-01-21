@@ -135,7 +135,7 @@ class GraphAggregationServer(Server, PerformanceMixin, RoundSelectionMixin):
                 # if other result type, broadcast to all workers
                 self._endpoint.broadcast(data=result)
         # post-send hook
-        print("this is _sent_result end !")
+        log_debug("this is _sent_result end !")
         self._after_send_result(result=result)
 
     def _server_exit(self) -> None:
@@ -189,8 +189,9 @@ class GraphAggregationServer(Server, PerformanceMixin, RoundSelectionMixin):
         # add the ID of this worker to the set of processed worker
         self.__worker_flag.add(worker_id)
         if len(self.__worker_flag) == self.worker_number:
-            print(f"here is after processing all worker data: len worker_flag ({len(self.__worker_flag)})"
-                  f" len worker_number({self.worker_number})")
+            log_info("here is after processing all worker data: len worker_flag %s , len worker_number %s ",
+                      len(self.__worker_flag),
+                      self.worker_number)
             # aggregate the data from all worker once the data from them is processed
             result = self._aggregate_worker_data()
             # assert result have a "family_assignment" key in other_data
@@ -199,9 +200,9 @@ class GraphAggregationServer(Server, PerformanceMixin, RoundSelectionMixin):
             # update the stored graph data stored in the server (we may use _graph_client_states to assign families)
             self._update_graph_data(result)
             # send the aggregated model to server
-            print("here is before calling _send_result function")
+            log_debug("here is before calling _send_result function")
             self._send_result(result)
-            print("here is after calling _send_result function")
+            log_debug("here is after calling _send_result function")
             # clear the set of worker flag
             self.__worker_flag.clear()
         else:
