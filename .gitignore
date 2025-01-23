@@ -159,3 +159,7 @@ cython_debug/
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 .idea/
 .img_clss_pkgs/
+
+
+# graph saved images directory
+/federated_learning_simulator/graph_spectral_clustering_images
