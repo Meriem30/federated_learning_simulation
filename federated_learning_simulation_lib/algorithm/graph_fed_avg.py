@@ -29,6 +29,11 @@ class GraphFedAVGAlgorithm(AggregationAlgorithm):
         self._assign_family: bool = True
         self._enable_clustering: bool = True
         self._enum_converted: bool = False
+        self._adjacency_matrix = None
+
+    @property
+    def adjacency_sc_matrix(self):
+        return self._adjacency_matrix
 
     def process_worker_data(
             self,
@@ -108,7 +113,7 @@ class GraphFedAVGAlgorithm(AggregationAlgorithm):
         if self._enable_clustering:
             self.__client_states_array = self._create_workers_matrix(self._all_worker_data)
             # call the appropriate class,function passing the matrix of data points (client_states)
-            clustering_results = self._perform_clustering(self.__client_states_array)
+            clustering_results, self._adjacency_matrix = self._perform_clustering(self.__client_states_array)
         other_data: dict[str, Any] = {}
         if self.aggregate_loss:
             # if true, compute aggregated loss values
@@ -253,11 +258,12 @@ class GraphFedAVGAlgorithm(AggregationAlgorithm):
 
         # Perform spectral clustering and get the result
         labels = clustering.fit(self.__client_states_array)
+        self._adjacency_matrix = clustering.adjacency_matrix
         log_info(" this is the labels variable returned from the clustering : %s", labels)
-
+        log_info(" this is the adjacency matrix returned from the clustering :\n %s", self._adjacency_matrix)
         # Process the result
         #self._process_clustering_results(labels)
-        return labels
+        return labels, self._adjacency_matrix
 
 
 
