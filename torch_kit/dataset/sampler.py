@@ -3,7 +3,7 @@ import functools
 import random
 from typing import Any, Callable
 
-from other_libs.log import log_warning, log_debug
+from other_libs.log import log_warning, log_debug, log_info
 
 from .util import DatasetUtil
 """
@@ -49,7 +49,11 @@ class DatasetSampler:
             :input: a list, each element is a list of indices
             :return: a list, each element is torch.utils.data.MapDataPipe object
         """
-        log_debug("constructing subsets ..")
+        log_info("constructing subsets ..")
+        log_info("the list indices len: %s ",len(index_list))
+        log_info("the list indices first element: %s ", index_list[0])
+        log_info("the list indices second element: %s ", index_list[1])
+        log_info("the list indices third element: %s ", index_list[2])
         return [
             self.__dataset_util.get_subset(indices=indices) for indices in index_list
         ]
