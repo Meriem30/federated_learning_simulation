@@ -1,10 +1,14 @@
 import os
 import pickle
 from typing import Any
+from datetime import datetime
+
 import networkx as nx
-from other_libs.log import log_debug, log_info
+from other_libs.log import log_debug, log_info, log_warning
 from torch_kit import Inferencer, ModelParameter
 from torch_kit.tensor import tensor_to
+import matplotlib.pyplot as plt
+from matplotlib.colors import ListedColormap
 
 from ..algorithm.aggregation_algorithm import AggregationAlgorithm
 from ..message import (DeltaParameterMessage, Message, MultipleWorkerMessage,
@@ -31,7 +35,7 @@ class GraphAggregationServer(Server, PerformanceMixin, RoundSelectionMixin):
         self.__worker_flag: set = set()
         algorithm.set_config(self.config)
         # instance of the aggregation algorithm
-        self.__algorithm: AggregationAlgorithm = algorithm
+        self.__algorithm: AggregationAlgorithm | GraphFedAVGAlgorithm = algorithm
         self._need_init_performance = False
         self._network = nx.Graph()
         self._graph_client_states = {
@@ -40,6 +44,7 @@ class GraphAggregationServer(Server, PerformanceMixin, RoundSelectionMixin):
         }
         self._families = {i: [] for i in range(self.config.family_number)} if self.config.family_number != 0 else {}
         self._initialize_network()
+        self.__root_graph_folder = os.path.join("graph_spectral_clustering_images", datetime.now().strftime("%Y-%m-%d_%H:%M:%S"))
 
     @property
     def early_stop(self) -> bool:
@@ -145,7 +150,88 @@ class GraphAggregationServer(Server, PerformanceMixin, RoundSelectionMixin):
     def _initialize_network(self):
         for worker_id in range(self.config.worker_number):
             self._network.add_node(worker_id, state=self._graph_client_states[worker_id])
-        log_info("Network initialized with nodes")
+        log_info("Network initialized with nodes for round: %s ", self.round_index)
+
+    def _update_network(self):
+        """
+        Update the graph's nodes, edges, and clusters based on the latest client states and similarity matrix.
+        """
+        # Update client states
+        for worker_id, client_state in self._graph_client_states.items():
+            if self._network.has_node(worker_id):
+                self._network.nodes[worker_id]['state'] = client_state
+            else:
+                self._network.add_node(worker_id, state=client_state)
+
+        # Update edges based on the new similarity matrix
+        adjacency_matrix = self.__algorithm.adjacency_sc_matrix
+        if adjacency_matrix is not None:
+            num_clients = self.worker_number
+            self._network.clear_edges()  # Remove old edges
+            for i in range(num_clients):
+                for j in range(i + 1, num_clients):
+                    weight = adjacency_matrix[i][j]
+                    if weight > 0:
+                        self._network.add_edge(i, j, weight=weight)
+            self._save_and_print_graph()
+            print("Graph updated with new nodes and edges.")
+        else:
+            log_warning("adjacency_matrix is %s ", adjacency_matrix)
+
+    def _save_and_print_graph(self):
+        """
+        Save and print the current state of the graph, coloring nodes by cluster and displaying edge weights.
+        """
+        # Assign colors to nodes based on their family (cluster)
+        families = set(client_state.family for _, client_state in self._graph_client_states.items())
+        # Map family to an index
+        family_to_color = {family: idx for idx, family in enumerate(families)}
+        # Use a colormap with enough distinct colors
+        cmap = plt.cm.Set1
+        # Assign the same color to the clients members of the same family
+        node_colors = [cmap(family_to_color[self._network.nodes[node]['state'].family]) for node in self._network.nodes]
+
+        # Create a layout for the graph with more spacing
+        pos = nx.spring_layout(self._network, k=0.8, seed=42)  # k controls spacing, seed ensures reproducibility
+
+        # Draw the graph
+        plt.figure(figsize=(16, 10))
+        nx.draw(
+            self._network,
+            pos,
+            with_labels=True,
+            labels={node: f"{node}:(f{self._network.nodes[node]['state'].family})" for node in self._network.nodes},
+            node_color=node_colors,
+            node_size=950,
+            font_size=12,
+            font_color='black',
+            font_weight='bold',
+            edge_color='gray',
+            width=1.0
+        )
+
+        # Draw the edges
+        nx.draw_networkx_edges(self._network, pos, alpha=0.7)
+        edge_labels = {
+            (u, v): f"{d['weight']:.2f}" for u, v, d in self._network.edges(data=True)
+        }
+
+
+        # Draw the edges labels with weights formatted to 2 decimal place
+        nx.draw_networkx_edge_labels(self._network, pos, edge_labels=edge_labels, font_size=10)
+
+
+        # Save the graph image
+        save_dir = self.__root_graph_folder
+        os.makedirs(save_dir, exist_ok=True)
+        filepath = os.path.join(save_dir, f"graph_iteration_{self.round_index}.png")
+        # Save the figure without padding
+        plt.savefig(filepath, bbox_inches='tight')
+        plt.show()
+        # Clear the plot
+        #plt.clf()
+        print(f"Graph saved as {filepath}")
+
 
     def _process_worker_data(self, worker_id: int, data: Message | None) -> None:
         """
@@ -203,6 +289,11 @@ class GraphAggregationServer(Server, PerformanceMixin, RoundSelectionMixin):
             log_debug("here is before calling _send_result function")
             self._send_result(result)
             log_debug("here is after calling _send_result function")
+            log_info("************************************  adj matrix from server \n %s ",
+                     self.__algorithm.adjacency_sc_matrix)
+
+            log_info("************************************  adj matrix shape & type %s \n %s ",
+                     self.__algorithm.adjacency_sc_matrix.shape, type(self.__algorithm.adjacency_sc_matrix))
             # clear the set of worker flag
             self.__worker_flag.clear()
         else:
@@ -214,8 +305,12 @@ class GraphAggregationServer(Server, PerformanceMixin, RoundSelectionMixin):
             )
 
     def _update_graph_data(self, result) -> None:
-        # add logic
+        # logic ADDED
         self._update_families(result.other_data)
+        for node_idx, node_state in self._graph_client_states.items():
+            for family, list_nodes in self._families.items():
+                if node_idx in list_nodes:
+                    self._graph_client_states[node_idx].set_family(family)
         log_info("graph data (families) is updated")
 
     def _update_families(self, other_data: dict[str, Any]) -> None:
@@ -295,6 +390,7 @@ class GraphAggregationServer(Server, PerformanceMixin, RoundSelectionMixin):
             clear data from the algorithm
             if end training: save the cached model
         """
+        self._update_network()
         if not result.in_round:
             self._round_index += 1
         self.__algorithm.clear_worker_data()
