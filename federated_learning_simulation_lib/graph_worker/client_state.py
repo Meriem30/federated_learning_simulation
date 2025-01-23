@@ -25,6 +25,9 @@ class ClientState:
         self._family = family
 
     @property
+    def node_id(self) -> int:
+        return self._client_id
+    @property
     def battery(self) -> float:
         return self._battery
 
