@@ -22,6 +22,7 @@ class SpectralClustering:
         self.similarity_function = similarity_function
         self.laplacian_type = laplacian_type
         self.num_clusters = num_clusters
+        self.adjacency_matrix = None
 
     def fit(self, data):
         # Step 1: create similarity matrix
@@ -37,6 +38,7 @@ class SpectralClustering:
 
         # Call the graph construction function the on created instance
         adjacency_matrix = graph_constructor.construct_graph(similarity_matrix)
+        self.adjacency_matrix = adjacency_matrix
         log_info("************** This is the adjacency matrix ***************** \n %s", adjacency_matrix)
         # Step 3: prepare the laplacian instance (only initiate class attributes)
         laplacian = Laplacian(adjacency_matrix, self.laplacian_type)
