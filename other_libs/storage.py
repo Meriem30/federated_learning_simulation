@@ -116,6 +116,10 @@ class DataStorage:
                 self.__data = None
                 self.__data_location = DataLocation.Disk
 
+    def save_in(self, path) -> None:
+        assert path is not None
+        with open(path, "wb") as f:
+            pickle.dump(self.__data, f)
 
 def persistent_cache(
     path: str | None = None, cache_time: float | None = None
