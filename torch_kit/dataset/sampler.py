@@ -49,11 +49,6 @@ class DatasetSampler:
             :input: a list, each element is a list of indices
             :return: a list, each element is torch.utils.data.MapDataPipe object
         """
-        log_info("constructing subsets ..")
-        log_info("the list indices len: %s ",len(index_list))
-        log_info("the list indices first element: %s ", index_list[0])
-        log_info("the list indices second element: %s ", index_list[1])
-        log_info("the list indices third element: %s ", index_list[2])
         return [
             self.__dataset_util.get_subset(indices=indices) for indices in index_list
         ]
