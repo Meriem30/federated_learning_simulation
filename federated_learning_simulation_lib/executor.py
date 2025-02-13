@@ -22,19 +22,31 @@ class ExecutorContext:
     # initialize a binary semaphore
     semaphore = gevent.lock.BoundedSemaphore(value=1)
 
-    def __init__(self, name: str) -> None:
+    # File access lock (separate for reading/writing models)
+    file_semaphore = gevent.lock.BoundedSemaphore(value=1)
+
+    def __init__(self, name: str, is_file_lock: bool = False) -> None:
         self.__name = name
+        self.__is_file_lock = is_file_lock
 
     # implement the context manager protocol (acquire and release)
     def __enter__(self) -> Self:
-        self.acquire(name=self.__name)
+        if self.__is_file_lock:
+            self.acquire_file_semaphore(name=self.__name)
+        else:
+            self.acquire(name=self.__name)
         return self
 
     def __exit__(self, exc_type, exc, tb) -> None:
         if exc_type is not None:
             log_error("Found exception: %s %s %s", exc_type, exc, tb)
-        self.release()
-
+        try:
+            if self.__is_file_lock:
+                self.release_file_semaphore()
+            else:
+                self.release()
+        except RuntimeError:
+            log_error(f"Lock was already released for {self.__name}")
     @classmethod
     def set_name(cls, name: str) -> None:
         multiprocessing.current_process().name = name
@@ -47,11 +59,21 @@ class ExecutorContext:
         log_debug("get lock %s", cls.semaphore)
 
     @classmethod
+    def acquire_file_semaphore(cls, name: str) -> None:
+        cls.file_semaphore.acquire()
+        cls.set_name(name)
+        log_debug("get lock %s", cls.file_semaphore)
+
+    @classmethod
     def release(cls) -> None:
         log_debug("release lock %s", cls.semaphore)
         cls.set_name("unknown executor")
         cls.semaphore.release()
 
+    def release_file_semaphore(cls) -> None:
+        log_debug("release lock %s", cls.file_semaphore)
+        cls.set_name("unknown executor")
+        cls.file_semaphore.release()
 
 class Executor:
     """
