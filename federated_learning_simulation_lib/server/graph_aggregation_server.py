@@ -4,7 +4,7 @@ from typing import Any
 from datetime import datetime
 
 import networkx as nx
-from other_libs.log import log_debug, log_info, log_warning
+from other_libs.log import log_debug, log_info, log_warning, log_error
 from torch_kit import Inferencer, ModelParameter
 from torch_kit.tensor import tensor_to
 import matplotlib.pyplot as plt
@@ -36,7 +36,7 @@ class GraphAggregationServer(Server, PerformanceMixin, RoundSelectionMixin):
         algorithm.set_config(self.config)
         # instance of the aggregation algorithm
         self.__algorithm: AggregationAlgorithm | GraphFedAVGAlgorithm = algorithm
-        self._need_init_performance = False
+        self._need_init_performance = True
         self._network = nx.Graph()
         self._graph_client_states = {
             worker_id: ClientState(worker_id)
@@ -89,7 +89,7 @@ class GraphAggregationServer(Server, PerformanceMixin, RoundSelectionMixin):
 
     @property
     def distribute_init_parameters(self) -> bool:
-        return self.config.algorithm_kwargs.get("distribute_init_parameters", True)
+       return self.config.algorithm_kwargs.get("distribute_init_parameters", True )
 
     def _before_start(self) -> None:
         """
@@ -101,6 +101,7 @@ class GraphAggregationServer(Server, PerformanceMixin, RoundSelectionMixin):
                     in_round=True, parameter=self.__get_init_model(), is_initial=True
                 )
             )
+        log_error("*********************** *********************** distribute init params. Round after send results to worker %s", self.round_index)
 
     def _send_result(self, result: Message) -> None:
         """
@@ -394,9 +395,10 @@ class GraphAggregationServer(Server, PerformanceMixin, RoundSelectionMixin):
         if not result.in_round:
             self._round_index += 1
         self.__algorithm.clear_worker_data()
-        if result.end_training or self._stopped():
-            assert self._model_cache.has_data
-            self._model_cache.save()
+        # delete the condition in order to get the model saved after each iteration
+        #if result.end_training or self._stopped():
+        assert self._model_cache.has_data
+        self._model_cache.save()
 
     def _stopped(self) -> bool:
         """

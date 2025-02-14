@@ -48,6 +48,10 @@ class AggregationServer(Server, PerformanceMixin, RoundSelectionMixin):
     @property
     def round_index(self) -> int:
         return self._round_index
+    
+    @property
+    def get_server_cached_model(self) -> ModelCache:
+        return self.__model_cache
 
     def get_tester(self, copy_tester: bool = False) -> Inferencer:
         """
