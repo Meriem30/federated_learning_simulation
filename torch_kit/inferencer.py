@@ -177,7 +177,7 @@ class Inferencer(Executor):
         sample_results["model_output"].update(zip(sample_indices, predictions))
         # Store corresponding targets
         sample_results["targets"].update(zip(sample_indices, result["targets"]))
-        assert sample_results["model_output"].shape == sample_results["targets"].shape
+        assert sample_results["model_output"].keys() == sample_results["targets"].keys()
 
     def calculate_mutual_information(self, inputs, device):
         # Forward pass through both models
