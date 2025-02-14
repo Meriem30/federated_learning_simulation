@@ -28,7 +28,7 @@ class AggregationWorker(Worker, ClientMixin):
         # whether to send parameter differences instead of full parameters
         self._send_parameter_diff: bool = False
         # whether to keep a cache for model params
-        self._keep_model_cache: bool = False
+        self._keep_model_cache: bool = True
         # whether to send loss information
         self._send_loss: bool = False
         self.__model_cache: ModelCache = ModelCache()

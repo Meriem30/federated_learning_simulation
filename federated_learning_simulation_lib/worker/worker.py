@@ -72,7 +72,7 @@ class Worker(Executor):
         """
             save the trainer's hyperparams to a file after training
         """
-        with open(os.path.join(self.save_dir, "hyper_parameter.pk"), "wb") as f:
+        with open(os.path.join(self.save_dir, f"hyper_parameter_round_{self.round_index}.pk"), "wb") as f:
             dill.dump(
                 self.trainer.hyper_parameter,
                 f,
@@ -125,13 +125,13 @@ class Worker(Executor):
                         )
                     )
                 else:
-                    self.trainer.hook_config.summarize_executor = False
+                    self.trainer.hook_config.summarize_executor = True
                 # if performance metric should be logged
                 self.trainer.hook_config.log_performance_metric = (
                     self.config.enable_training_log
                 )
                 # newly added
-                self.trainer.hook_config.save_performance_metric = False
+                self.trainer.hook_config.save_performance_metric = True
                 self.trainer.disable_hook("batch_loss_logger")
                 self.trainer.set_visualizer_prefix(
                     prefix=f"round: {self._round_index},"
@@ -140,7 +140,9 @@ class Worker(Executor):
                 self.trainer.train(
                     **kwargs,
                 )
-                # increment the round index
+                # ADDED to handle MI cached model extraction
+                #with ExecutorContext(self.name, is_file_lock=True):
+                self._after_training()
                 self._round_index += 1
         # clean up once the loop is completed
         with ExecutorContext(self.name):
