@@ -9,6 +9,7 @@ from ..ml_type import EvaluationMode, ModelType
 from ..tensor import tensor_to
 from .util import ModelUtil
 
+from torch.utils.data.datapipes.map.utils import SequenceWrapperMapDataPipe
 
 class ModelEvaluator:
     """
@@ -86,6 +87,8 @@ class ModelEvaluator:
                 self.__loss_fun = nn.CrossEntropyLoss()
             case "NLLLoss":
                 self.__loss_fun = nn.NLLLoss()
+            case "BCEWithLogitsLoss":
+                self.__loss_fun = nn.BCEWithLogitsLoss()
             case str():
                 raise RuntimeError(f"unknown loss function {loss_fun}")
             case _:
@@ -192,6 +195,43 @@ class ModelEvaluator:
             case _:
                 raise NotImplementedError(type(inputs))
         return self._compute_loss(output=output, **kwargs)
+
+    def forward_outputs_only(
+            self,
+            inputs: Any,
+            device: None | torch.device = None,
+            evaluation_mode: EvaluationMode | None = None,
+    ) -> torch.Tensor:
+        """
+        Perform a forward pass and return only the raw outputs, skipping loss computation.
+        """
+        if evaluation_mode is not None:
+            self.__set_model_mode(evaluation_mode=evaluation_mode)
+
+        if device is not None:
+            inputs = tensor_to(inputs, device=device, non_blocking=True)
+            self.model_util.to_device(device=device)
+
+        with (
+            torch.no_grad() if evaluation_mode == EvaluationMode.Test else nullcontext()
+        ):
+            fun: Callable = self._get_forward_fun()
+            match inputs:
+                case torch.Tensor():
+                    return fun(inputs)
+                case tuple():
+                    return fun(*inputs)
+                case dict():
+                    return fun(**inputs)
+                case SequenceWrapperMapDataPipe():
+                    # Iterate over the DataPipe and perform forward pass for each batch
+                    results = []
+                    for batch in inputs:
+                        batch = tensor_to(batch, device=device, non_blocking=True)
+                        results.append(fun(batch))
+                    return
+                case _:
+                    raise NotImplementedError(type(inputs))
 
     def _compute_loss(
         self,
