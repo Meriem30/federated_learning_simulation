@@ -8,8 +8,9 @@ from torch_kit import ModelParameter
 
 from ..message import Message, ParameterMessage
 from .aggregation_algorithm import AggregationAlgorithm
+from .fed_avg_algorithm import FedAVGAlgorithm
 from .spectral_clustering import SpectralClustering, SimilarityType, GraphType, LaplacianType
-
+#from .shapley_value import EnhancedGTGShapleyValueAlgorithm
 
 class GraphFedAVGAlgorithm(AggregationAlgorithm):
 
@@ -30,6 +31,8 @@ class GraphFedAVGAlgorithm(AggregationAlgorithm):
         self._enable_clustering: bool = True
         self._enum_converted: bool = False
         self._adjacency_matrix = None
+        # ADDED to handle svs
+        self._assign_egtg_sv: bool = True
 
     @property
     def adjacency_sc_matrix(self):
@@ -152,13 +155,19 @@ class GraphFedAVGAlgorithm(AggregationAlgorithm):
         participating_clients = np.array([worker_id for worker_id in all_worker_data.keys()
                                           if worker_id not in self.skipped_workers])
         if len(participating_clients) > 0:
-            states = np.array([
+            """states = np.array([
                 [float(all_worker_data[worker_id].other_data["node_state"]._battery),
                  float(all_worker_data[worker_id].other_data["node_state"]._energy_consumption),
                  float(all_worker_data[worker_id].other_data["node_state"]._memory_occupation)]
                 for worker_id in participating_clients
-            ])
-            client_states[participating_clients, :] = states
+            ])"""
+            for worker_id in range(num_clients):
+                if worker_id in participating_clients:
+                    states = np.array([float(all_worker_data[worker_id].other_data["node_state"].mi)])
+                    client_states[worker_id, :] = states
+                elif worker_id in list(range(num_clients)):
+                    client_states[worker_id, :] = np.array(0.0)
+
 
         # update previous states in Graph_Aggregation_Server not here
         # for worker_id in participating_clients:
