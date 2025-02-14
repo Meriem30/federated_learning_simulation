@@ -45,7 +45,17 @@ def add_medical_vision_transforms(dc, model_evaluator) -> None:
             transform=torchvision.transforms.Resize(input_size, antialias=True),
             key=TransformType.Input,
         )
-    if dc.name.upper() not in ("PNEUMONIA"):
+    if dc.name.upper() in ("PNEUMONIA"):
+        dc.append_transform(
+            torchvision.transforms.Resize(256),
+            key=TransformType.Input,
+            phases={MachineLearningPhase.Training, MachineLearningPhase.Validation, MachineLearningPhase.Test}
+        )
+        dc.append_transform(
+            torchvision.transforms.CenterCrop(224),
+            key=TransformType.Input,
+            phases={MachineLearningPhase.Training, MachineLearningPhase.Validation, MachineLearningPhase.Test}
+        )
         dc.append_transform(
             torchvision.transforms.RandomHorizontalFlip(),
             key=TransformType.RandomInput,
