@@ -28,7 +28,7 @@ class Laplacian:
         self.laplacian_type = laplacian_type
         self.adjacency_matrix = adjacency_matrix
         self.eps = eps
-        log_info("this is the matrix adjacency passed to the laplacian class %s", adjacency_matrix)
+        #log_info("this is the matrix adjacency passed to the laplacian class \n %s", adjacency_matrix)
         self.degree_matrix = np.diag(np.sum(adjacency_matrix, axis=1))
         shape_verification = (self.degree_matrix.shape == adjacency_matrix.shape)
 

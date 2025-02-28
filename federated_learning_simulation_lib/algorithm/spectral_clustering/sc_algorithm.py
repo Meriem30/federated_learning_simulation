@@ -51,5 +51,21 @@ class SpectralClustering:
         # Step 5: apply KMeans clustering on the eigenvectors
         kmeans = KMeans(n_clusters=self.num_clusters)
         kmeans.fit(top_k_eigenvectors)
+        labels =  kmeans.labels_
 
-        return kmeans.labels_  # Return the cluster labels for each data point
+        """# Step 5: Extract both types of centroids
+        spectral_centroids = kmeans.cluster_centers_  # Centroids in eigenvector space
+        real_centroids = []  # Closest real data points
+
+        for cluster_idx in range(self.num_clusters):
+            cluster_points_idx = np.where(labels == cluster_idx)[0]
+            cluster_points = data[cluster_points_idx]
+
+            if len(cluster_points) > 0:
+                closest_idx = np.argmin(
+                    np.linalg.norm(top_k_eigenvectors[cluster_points_idx] - spectral_centroids[cluster_idx], axis=1))
+                real_centroids.append(cluster_points[closest_idx])
+            else:
+                real_centroids.append(None)  # In case a cluster has no points (rare)"""
+
+        return labels # Return the cluster labels for each data point
