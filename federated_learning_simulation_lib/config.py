@@ -26,7 +26,7 @@ class DistributedTrainingConfig(Config):
         self.exp_name: str = "selection_exps"
         self.log_file: str = ""
         self.enable_training_log: bool = False
-        self.use_validation: bool = False
+        self.use_validation: bool = True
         self.worker_number_per_process: int = 0
         # added to consider graphs
         self.graph_worker: bool = False
