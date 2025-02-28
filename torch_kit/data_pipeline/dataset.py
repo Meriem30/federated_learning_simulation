@@ -85,7 +85,7 @@ def dataset_with_indices(
 
         case torch.utils.data.IterableDataset():
             # MODIFIED to handle medical pneumonia data
-            #dataset = torch.utils.data.datapipes.iter.IterableWrapper(dataset)
+            dataset = torch.utils.data.datapipes.iter.IterableWrapper(dataset)
             return dataset
 
     # Initialize another block of pattern matching to further process the new dataset
@@ -136,7 +136,12 @@ def select_item(dataset: Any, indices: OptionalIndicesType = None) -> Generator:
                 indices = list(range(get_dataset_size(dataset)))
             # Iterate over indices and yield (idx, data) for each index in the set
             for idx in indices:
-                yield idx, dataset[idx]
+                try:
+                    item = dataset[idx]  
+                except Exception as e:
+                    print(f"Error: Cannot access dataset[{idx}]: {e}")
+                    continue  # Skip invalid indices instead of crashing
+                yield idx, item
 
 
 def subset_dp(
