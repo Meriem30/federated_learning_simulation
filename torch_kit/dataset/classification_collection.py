@@ -53,7 +53,7 @@ class ClassificationDatasetCollection:
             #    if self.__dc.has_dataset(phase):
             #        labels |= self.__dc.get_dataset_util(phase).get_labels()
             labels = self.__dc.get_dataset_util(phase=MachineLearningPhase.Training).get_labels()
-            log_debug("labels", labels)
+            log_debug("labels %s ", labels)
             return labels
 
         if not use_cache:
@@ -64,7 +64,7 @@ class ClassificationDatasetCollection:
     def is_mutilabel(self) -> bool:
         # Check if dataset samples are multi-label
         def computation_fun() -> bool:
-            if self.name.lower() == "imagenet":
+            if self.name.lower() == "imagenet" or self.name.lower() == "cifar10":
                 return False
             for _, labels in self.__get_first_dataset_util().get_batch_labels():
                 if len(labels) > 1:
