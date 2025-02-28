@@ -3,7 +3,7 @@ from typing import Any, MutableMapping
 
 import numpy as np
 import torch
-from other_libs.log import log_error, log_debug, log_info
+from other_libs.log import log_error, log_debug, log_info, log_warning
 from torch_kit import ModelParameter
 
 from ..message import Message, ParameterMessage
@@ -113,7 +113,7 @@ class GraphFedAVGAlgorithm(AggregationAlgorithm):
             self.__total_weights = {}
         # ADDED to handle spectral_clustering
         clustering_results = None
-        if self._enable_clustering:
+        if self._enable_clustering and self.config.round > 1:
             self.__client_states_array = self._create_workers_matrix(self._all_worker_data)
             # call the appropriate class,function passing the matrix of data points (client_states)
             clustering_results, self._adjacency_matrix = self._perform_clustering(self.__client_states_array)
@@ -122,7 +122,7 @@ class GraphFedAVGAlgorithm(AggregationAlgorithm):
             # if true, compute aggregated loss values
             other_data |= self.__aggregate_loss(self._all_worker_data)
         # ADDED to handle graphs
-        if self._assign_family:
+        if self._assign_family and self.config.round != 1:
             log_info("update family is enabled for all workers")
             #log_info("this is other data before calling _update_family_assignment function %s", self._all_worker_data)
             other_data |= self.__update_family_assignment(self._all_worker_data, clustering_results)
@@ -163,7 +163,8 @@ class GraphFedAVGAlgorithm(AggregationAlgorithm):
             ])"""
             for worker_id in range(num_clients):
                 if worker_id in participating_clients:
-                    states = np.array([float(all_worker_data[worker_id].other_data["node_state"].mi)])
+                    feature = float(all_worker_data[worker_id].other_data["node_state"].mi)
+                    states = np.array(feature)
                     client_states[worker_id, :] = states
                 elif worker_id in list(range(num_clients)):
                     client_states[worker_id, :] = np.array(0.0)
@@ -269,6 +270,7 @@ class GraphFedAVGAlgorithm(AggregationAlgorithm):
         labels = clustering.fit(self.__client_states_array)
         self._adjacency_matrix = clustering.adjacency_matrix
         log_info(" this is the labels variable returned from the clustering : %s", labels)
+        #log_warning(" this is the centroids returned from the clustering : %s", centroids)
         log_info(" this is the adjacency matrix returned from the clustering :\n %s", self._adjacency_matrix)
         # Process the result
         #self._process_clustering_results(labels)
