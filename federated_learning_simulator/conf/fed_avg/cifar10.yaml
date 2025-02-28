@@ -3,13 +3,23 @@ dataset_name: CIFAR10
 model_name: densenet40
 distributed_algorithm: fed_avg
 optimizer_name: SGD
-worker_number: 10
+worker_number: 65
 batch_size: 64
-round: 100
+round: 50
 learning_rate_scheduler_name: CosineAnnealingLR
-epoch: 5
-learning_rate: 0.1
+epoch: 3
+learning_rate: 0.001
 dataset_kwargs:
     dataset_type: Vision
-    dataset_sampling: iid
+    dataset_sampling: dirichlet
+    classes: [0,1,2,3,4,5,6,7,8,9]
+model_kwargs:
+    num_classes: 10
+algorithm_kwargs:
+    distribute_init_parameters: True
+    node_random_selection: True
+    node_sample_percent: 0.8
+save_performance_metric: True
+log_performance_metric: True
+debug: True
 ...
