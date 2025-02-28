@@ -119,7 +119,7 @@ class GraphAggregationServer(Server, PerformanceMixin, RoundSelectionMixin):
                     self._endpoint.send(worker_id=worker_id, data=data)
             case ParameterMessageBase():
                 # if ParameterMessage or any subclass, perform worker selection
-                selected_workers = self._select_cluster_workers(list(range(self.worker_number)))
+                selected_workers = self._select_workers_from_clusters(self._families)
                 if len(selected_workers) < self.config.worker_number:
                     # increment the worker_round if selected < total
                     worker_round = self.round_index + 1
