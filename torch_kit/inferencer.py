@@ -1,7 +1,7 @@
 import functools
 
 import torch
-from other_libs.log import log_warning
+from other_libs.log import log_warning, log_debug, log_error, log_info
 
 from .executor import Executor
 from .ml_type import (EvaluationMode, ExecutorHookPoint, ModelGradient,
@@ -103,10 +103,7 @@ class Inferencer(Executor):
             - "model_output": {index: output_value}
             - "targets": {index: target_value}
         """
-        sample_results = {
-            "model_output": {},
-            "targets": {}
-        }
+        sample_results = {}
 
         with self.hook_config:
             self.hook_config.disable_log()
@@ -124,7 +121,16 @@ class Inferencer(Executor):
             finally:
                 self.remove_named_hook(name=hook_name)
 
-        return sample_results
+        # Ensure lists are concatenated into a single tensor
+        final_model_output = torch.cat(sample_results["model_output"], dim=0) if sample_results[
+            "model_output"] else torch.tensor([])
+        final_targets = torch.cat(sample_results["targets"], dim=0) if sample_results["targets"] else torch.tensor([])
+
+        #log_info("Final model output shape: %s", final_model_output.shape)
+        #log_info("Final targets shape: %s", final_targets.shape)
+
+        return {"model_output": final_model_output, "targets": final_targets}
+
 
     def logits_to_classes(self, output: torch.Tensor)-> torch.Tensor:
         """
@@ -134,33 +140,38 @@ class Inferencer(Executor):
         :param output: The raw model outputs (output).
         :return: Predicted classes
         """
-        print("Logits shape:", output.shape)
-
+        #print("Logits shape:", output.shape)
+        if output.dim() == 1:  # If 1D, reshape to [batch_size, 1]
+            output = output.unsqueeze(1)
+            #print("Logits shape after unsqueeze :", output.shape)
         # Case 1: Binary classification (one output per sample)
         if output.shape[1] == 1:
-            print("Detected: Binary Classification")
+            #log_info("Detected: Binary Classification")
             probabilities = torch.sigmoid(output)  # Convert output to probabilities
             predicted_classes = (probabilities > 0.5).long()  # Thresholding at 0.5
+            #log_info("predicted_classes shape: %s ", predicted_classes.shape)
             return predicted_classes
 
         # Case 2: Multi-class classification (one class per sample)
         elif output.dim() == 2 and output.shape[1] > 1:
             # Check if each sample must belong to exactly one class
             if torch.all(output.sum(dim=1) != output.sum()):  # Ensures only one label per row
-                print("Detected: Multi-Class Classification")
+                #log_info("Detected: Multi-Class Classification")
                 probabilities = torch.softmax(output, dim=1)  # Convert output to probabilities
                 predicted_classes = torch.argmax(probabilities, dim=1)  # Take the index of max probability
+                #log_info("predicted_classes shape: %s ", predicted_classes.shape)
                 return predicted_classes
 
             # Case 3: Multi-label classification (multiple independent labels per sample)
             else:
-                print("Detected: Multi-Label Classification")
+                #log_info("Detected: Multi-Label Classification")
                 probabilities = torch.sigmoid(output)  # Convert output to probabilities
-                predicted_classes = (probabilities > 0.5).long()  # Thresholding at 0.5 for multiple labels
+                predicted_classes = (probabilities > 0.5).long()  # Thresholding at 0.5 for multiple labels*
+                #log_info("predicted_classes shape: %s ", predicted_classes.shape)
                 return predicted_classes
 
         else:
-            raise ValueError("Unsupported output shape!")
+            log_error("Unsupported output shape!")
 
 
     def __collect_model_output_and_target(
@@ -172,12 +183,26 @@ class Inferencer(Executor):
         if isinstance(sample_indices, torch.Tensor):
             sample_indices = sample_indices.tolist()
 
+        #log_info('results["target"] %s ', result["targets"])
+        #log_info('results["model_output"] (shape %s ): %s ', result["model_output"].shape, result["model_output"])
         # Store model outputs after sigmoid/softmax the model logits
         predictions = self.logits_to_classes(output=result["model_output"])
-        sample_results["model_output"].update(zip(sample_indices, predictions))
+        #log_info('predictions  %s ', predictions)
+
+        # Ensure lists exist in sample_results to accumulate data
+        if "model_output" not in sample_results:
+            sample_results["model_output"] = []
+        if "targets" not in sample_results:
+            sample_results["targets"] = []
+
+        # Append results for this batch
+        sample_results["model_output"].append(predictions.clone().detach().to("cuda"))
+
         # Store corresponding targets
-        sample_results["targets"].update(zip(sample_indices, result["targets"]))
-        assert sample_results["model_output"].keys() == sample_results["targets"].keys()
+        sample_results["targets"].append(result["targets"].clone().detach().to("cuda"))
+
+        #log_info("Accumulated model_output length: %s ", len(sample_results["model_output"]))
+        #log_info("Accumulated targets length: %s ", len(sample_results["targets"]))
 
     def calculate_mutual_information(self, inputs, device):
         # Forward pass through both models
