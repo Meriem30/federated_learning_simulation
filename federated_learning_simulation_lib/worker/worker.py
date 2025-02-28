@@ -125,7 +125,7 @@ class Worker(Executor):
                         )
                     )
                 else:
-                    self.trainer.hook_config.summarize_executor = True
+                    self.trainer.hook_config.summarize_executor = False
                 # if performance metric should be logged
                 self.trainer.hook_config.log_performance_metric = (
                     self.config.enable_training_log

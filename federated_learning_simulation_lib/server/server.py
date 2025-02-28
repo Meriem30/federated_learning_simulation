@@ -151,7 +151,7 @@ class Server(Executor, RoundSelectionMixin, NodeSelectionMixin):
                 log_info("wait for other %s workers ", len(worker_set))
 
             if worker_set and not self._stopped():
-                time.sleep(1)
+                time.sleep(5)
         # close the endpoint
         self._endpoint.close()
         # clean up
