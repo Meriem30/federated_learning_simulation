@@ -8,10 +8,11 @@ from federated_learning_simulation_lib.graph_worker import GraphWorker
 from other_libs.log import log_debug, log_info, log_error, log_warning
 from torch_kit import (ExecutorHookPoint, MachineLearningPhase,  # noqa
                        ModelParameter, StopExecutingException,  # noqa
-                       tensor_to, Inferencer, EvaluationMode, ModelEvaluator)
+                       tensor_to, Inferencer, EvaluationMode, ModelEvaluator, DatasetCollection)
 import torch
 import numpy as np
-
+import copy
+from torch_medical import transform
 from ..message import (DeltaParameterMessage, Message, ParameterMessage,
                        ParameterMessageBase)
 from ..util import ModelCache, load_parameters
@@ -93,7 +94,7 @@ class GraphAggregationWorker(GraphWorker, AggregationWorker, ClientMixin):  # Ag
         log_debug("************************* worker model", model)
         return model
 
-    def _get_test_data_subset(self, ratio: float = 0.5) -> torch.utils.data.Dataset:
+    def _get_test_data_subset(self, ratio: float = 0.5):
         """
         Extract a subset of the test dataset.
         """
@@ -101,12 +102,27 @@ class GraphAggregationWorker(GraphWorker, AggregationWorker, ClientMixin):  # Ag
         if not self.trainer.dataset_collection.has_dataset(MachineLearningPhase.Validation):
             raise ValueError("Training dataset is not available.")
         test_dataset = self.trainer.dataset_collection.get_dataset(MachineLearningPhase.Validation)
-        subset_size = int(ratio * len(test_dataset))
-        indices = np.random.choice(len(test_dataset), size=subset_size, replace=False)
-        subset = torch.utils.data.Subset(test_dataset, indices) # this ca be done differently following dataset logic
-        
-        log_debug(f"Extracted test data subset of size %s ", len(subset))
-        return subset
+        # Ensure dataset supports indexing
+        if not hasattr(test_dataset, "__getitem__"):
+            raise TypeError(f"Dataset {type(test_dataset)} does not support indexing.")
+
+        # Extract only the indices that exist within this worker's dataset
+        original_indices = list(range(len(test_dataset)))  # Fix: Get local dataset indices
+
+        log_warning("Total available local worker indices: %d", len(original_indices))
+
+        # Randomly select a subset of indices from the local worker dataset
+        subset_size = int(ratio * len(original_indices))
+        sampled_indices = np.random.choice(original_indices, size=subset_size, replace=False)
+
+        #log_warning("Selected worker dataset subset indices: %s", sampled_indices)
+
+        # Create the subset using these indices
+        #subset = subset_dp(test_dataset, sampled_indices)  # Ensure proper selection
+        #subset = torch.utils.data.Subset(test_dataset, sampled_indices)
+
+        log_warning("Extracted test data subset of size: %d", len(sampled_indices))
+        return original_indices, sampled_indices
 
     def _get_model_results(self, data: torch.utils.data.Dataset, model: ModelParameter) -> np.ndarray:
         """
@@ -147,75 +163,136 @@ class GraphAggregationWorker(GraphWorker, AggregationWorker, ClientMixin):  # Ag
         """
         log_info("Computing mutual information (MI)...")
 
-        # Create an inferencer for the worker-specific model
-        self.__worker_mi_evaluator = self.trainer.get_inferencer(
-            phase=MachineLearningPhase.Validation,  # Use test phase for inference
-            deepcopy_model=True,
-        )
-        # update the dataset used for this inference
-        self.__worker_mi_evaluator.update_dataloader_kwargs(
-            dataset=self._get_test_data_subset(0.4)  # Use a subset of the test dataset
-        )
-        # Get results(output classes & targets) on a non-seen dataset
-        worker_results = self.__worker_mi_evaluator.get_model_outputs_and_targets(EvaluationMode.Test) # do not perform backend propagation
-        worker_outputs = worker_results["model_output"]
-        worker_targets = worker_results["targets"]
-        log_debug("got worker inference results of type %s : %s ", type(worker_results["model_output"]))
-        worker_outputs = np.array([v.cpu().item() for v in worker_outputs.values()])
-        worker_targets = np.array([t.cpu().item() for t in worker_targets.values()])
-
-        print(" WORKER INFERENCE OUTPUTS ", worker_outputs)
-        print(" WORKER INFERENCE TARGETS ", worker_targets) # should be the same as the server ones
-
-        # Create an inferencer for the global round-specific model
-        self.__global_mi_evaluator = self.trainer.get_inferencer(
+        ############ Start MI estimation ##########
+        num_trials = 1
+        estimated_values = np.zeros(num_trials)
+        trainer_inferencer = self.trainer.get_inferencer(
             phase=MachineLearningPhase.Validation,
-            deepcopy_model=False,
+            inherent_device=True,
+            deepcopy_model=True,  # Ensures we copy the model separately
         )
 
-        # Reset the model parameters of created global inferencer to be the one extracted from cache
-        global_model_state_dict = self._get_aggregated_model_from_path(self.round_index)
-        #global_model = self.__global_mi_evaluator.running_model_evaluator.model.__class__()
-        #global_model.load_state_dict(global_model_state_dict)  # Load saved parameters
-        #global_model.to("cuda")
-        #self.__global_mi_evaluator.running_model_evaluator.model.load_state_dict(global_model.items())
-        self.__global_mi_evaluator.running_model_evaluator.model_util.load_parameters(global_model_state_dict) # Replace the model
-        self.__global_mi_evaluator.running_model_evaluator.model_util.to_device("cuda")
-        #server_results = self.__global_mi_evaluator.get_model_outputs_and_targets(ModelEvaluator.Test)
+        for i in range(num_trials):
+            ##################### Step 1: Create Worker Inferencer ##########
 
-        ############ To verify
-        model1 = self.__worker_mi_evaluator.running_model_evaluator.model_util.get_parameters() # or get underling model
-        model2 = self.__global_mi_evaluator.running_model_evaluator.model_util.get_parameters()
+            # ✅ Use shallow copy for inferencer to avoid re-copying dataset collection
+            self.__worker_mi_evaluator = copy.deepcopy(trainer_inferencer)
 
-        log_warning("************************************************ compare both worker/global inferencer params %s ",
-        self.compare_model_parameters(model1=model1, model2=model2))
-        ############
+            # ✅ Deep copy only the model so that worker_mi_inferencer has its own model
+            #self.__worker_mi_evaluator.running_model_evaluator.set_model(copy.deepcopy(
+            #    trainer_inferencer.running_model_evaluator.model_util.model ))
 
-        server_results = self.__global_mi_evaluator.get_model_outputs_and_targets(EvaluationMode.Test)  # dont perform backend propagation
-        server_outputs = server_results["model_output"]
-        server_targets = server_results["targets"]
-        server_outputs = np.array(list(server_outputs.values()))
-        server_targets = np.array([t.cpu().item() for t in server_targets.values()])
-        print(" SERVER INFERENCE OUTPUTS ", server_outputs)
-        print(" SERVER INFERENCE TARGETS ", server_targets)  # should be the same as the server ones
+            # ✅ Move the model to CUDA for evaluation
+            self.__worker_mi_evaluator.running_model_evaluator.model_util.to_device("cuda")
 
+            assert self.__worker_mi_evaluator.dataset_collection.has_dataset(MachineLearningPhase.Validation)
+            model1_params = self.__worker_mi_evaluator.running_model_evaluator.model_util.get_parameters()
+            ##################### Step 2: Create Global Inferencer ##########
+            self.__global_mi_evaluator = copy.deepcopy(self.__worker_mi_evaluator)  # Full copy of worker inferencer
 
-        #assert set(worker_outputs.keys()) == set(server_outputs.keys()) # we already verified that we have the same indices before converting to arrays
+            # ✅ Load the global model from cache (ensuring only the model changes)
+            global_model_state_dict = self._get_aggregated_model_from_path(self.round_index)
+            self.__global_mi_evaluator.running_model_evaluator.model_util.load_parameters(global_model_state_dict)
+            self.__global_mi_evaluator.running_model_evaluator.model_util.to_device("cuda")
 
-        res_mi = self._calculate_mutual_information(worker_outputs, server_outputs)
-        log_warning("this is resulted calculated mi %s" , res_mi)
-        self.__mi = res_mi
+            assert self.__global_mi_evaluator.dataset_collection.has_dataset(MachineLearningPhase.Validation)
+
+            ##################### Step 3: Extract Subset for Testing ##########
+            original_indices, sampled_indices = self._get_test_data_subset(0.3)
+
+            # ✅ Assign subset to both inferencers
+            self.__worker_mi_evaluator.dataset_collection.set_subset(MachineLearningPhase.Validation,
+                                                                     sampled_indices)
+            self.__global_mi_evaluator.dataset_collection.set_subset(MachineLearningPhase.Validation,
+                                                                     sampled_indices)
+
+            ##################### Step 4: Compare Model Parameters ##########
+
+            model2_params = self.__global_mi_evaluator.running_model_evaluator.model_util.get_parameters()
+            log_warning("Comparing worker/global inferencer params: %s",
+                        self.compare_model_parameters(model1=model1_params, model2=model2_params))
+
+            ##################### Step 5: Verify Dataset Consistency ##########
+            worker_dataset = self.__worker_mi_evaluator.dataset_collection.get_dataset(
+                MachineLearningPhase.Validation)
+            global_dataset = self.__global_mi_evaluator.dataset_collection.get_dataset(
+                MachineLearningPhase.Validation)
+
+            log_warning("Worker dataset size: %d", len(worker_dataset))
+            log_warning("Global dataset size: %d", len(global_dataset))
+            #log_warning("Worker dataset indices range: %s", [item["index"] for item in worker_dataset])
+            #log_warning("Global dataset indices range: %s", [item["index"] for item in global_dataset])
+
+            ##################### Step 6: Run Inference ##########
+            # Get results from worker inferencer
+            worker_results = self.__worker_mi_evaluator.get_model_outputs_and_targets(EvaluationMode.Test)
+            worker_outputs = worker_results["model_output"].clone().detach().cpu().numpy()
+            worker_targets = worker_results["targets"].clone().detach().cpu().numpy()
+
+            # Get results from global inferencer
+            server_results = self.__global_mi_evaluator.get_model_outputs_and_targets(EvaluationMode.Test)
+            server_outputs = server_results["model_output"].clone().detach().cpu().numpy()
+            server_targets = server_results["targets"].clone().detach().cpu().numpy()
+
+            assert server_targets.shape == worker_targets.shape
+            assert server_outputs.shape == worker_outputs.shape
+
+            ##################### Step 7: Compute Mutual Information ##########
+            labels = self.__worker_mi_evaluator.dataset_util.get_label_names()
+            estimated_values[i] = self.estimate_mutual_information(
+                X=worker_outputs, Y=server_outputs, possible_values=labels
+            )
+
+            log_warning("This is resulted calculated MI %s for estimation round %s ", estimated_values[i], i)
+
+            ##################### Step 8: Reset Trainer Inferencer ##########
+            trainer_inferencer.dataset_collection.set_subset(
+                MachineLearningPhase.Validation, original_indices)
+
+        self.__mi = np.mean(estimated_values)
         self._state.set_mi(self.__mi)
-        log_error("this is worker mi %s", self._state.mi)
-
-        log_warning("Round %s. Loaded worker model from inferencer.", self.round_index)
-        # Update the dataloader to use the worker's subset of the test dataset
-        self.__worker_mi_evaluator.update_dataloader_kwargs(
-            dataset=self._get_test_data_subset()  # Use a subset of the test dataset
-        )
+        log_warning("this is worker mi %s", self._state.mi)
 
 
-    def _calculate_mutual_information(self, X, Y, log_base: int = 2) -> float:
+    def estimate_mutual_information(self, X, Y, possible_values:list):
+
+        # Convert inputs to numpy arrays if they are lists or PyTorch tensors
+        def to_numpy(array):
+            if isinstance(array, torch.Tensor):
+                return array.cpu().numpy()
+            elif isinstance(array, list):
+                return np.array(array)
+            elif isinstance(array, np.ndarray):
+                return array
+            elif isinstance(array, dict):
+                return np.array(array.values())
+            else:
+                raise TypeError(f"Unsupported data type: {type(array)}")
+
+        X = to_numpy(X)  # worker results
+        Y = to_numpy(Y)  # server results
+
+        assert X.shape == Y.shape, "The shapes of X and Y must match."
+        assert possible_values is not None
+        possible_values = np.array(list(possible_values))
+
+        n = possible_values.shape[0]
+        P = np.zeros((n, n))
+        for i, x in enumerate(possible_values):
+            for j, y in enumerate(possible_values):
+                P[i, j] = np.sum((X == x) * (Y == y))
+        P = P / len(X)
+        P_x = np.sum(P, axis=1)
+        P_y = np.sum(P, axis=0)
+        MI = 0
+        for i, x in enumerate(possible_values):
+            for j, y in enumerate(possible_values):
+                if P[i, j] > 0:
+                    MI += P[i, j] * np.log(P[i, j] / (P_x[i] * P_y[j]))
+
+        return MI
+
+    def _calculate_mutual_information(self, X, Y, log_base: int = 2, unique_values=None) -> float:
         """
         Calculate mutual information (MI) between two sets of results.
         MI(X, Y) = H(X) - H(X | Y)
@@ -234,19 +311,22 @@ class GraphAggregationWorker(GraphWorker, AggregationWorker, ClientMixin):  # Ag
                 raise TypeError(f"Unsupported data type: {type(array)}")
 
         X = to_numpy(X) # worker results
-        log_warning("this is X %s worker results", X)
+        #log_warning("this is X %s worker results", X)
         Y = to_numpy(Y) # server results
-        log_warning("this is Y %s server results", Y)
+        #log_warning("this is Y %s server results", Y)
         assert X.shape == Y.shape, "The shapes of X and Y must match."
-
+        assert unique_values is not None
         # Calculate H(X): Entropy of X
-        X_values = np.array([0,1])
-        X_counts = np.array([0,0])
+
+        X_values = np.array(list(unique_values))
+        print(X_values)
+        print(X_values.shape[0])
+        X_counts = np.zeros(X_values.shape[0], dtype=int)
+        # Count occurrences for each unique value in X_values
         for i in range(X.shape[0]):
-            if X[i]== X_values[0]:
-                X_counts[0] +=1
-            elif X[i] == X_values[0]:
-                X_counts[1] += 1
+            for j in range(X_values.shape[0]):  # Loop through all unique values
+                if X[i] == X_values[j]:
+                    X_counts[j] += 1  # Increment the count for the correct index
         log_warning("This is X_values %s, and X_counts %s", X_values, X_counts)
         P_X = X_counts / X_counts.sum()
         H_X = -np.sum(P_X * np.log(P_X + 1e-10) / np.log(log_base))  # Use dynamic log base
@@ -391,4 +471,7 @@ class GraphAggregationWorker(GraphWorker, AggregationWorker, ClientMixin):  # Ag
                 family = data["family_assignment"][self.worker_id]
                 if family is not None:
                     return family
+                else:
+                    log_warning("family_assignment not found for worker %s", self.worker_id)
+
         return 0
