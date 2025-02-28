@@ -26,8 +26,8 @@ def get_medical_model(
             }
     num_classes = 1  # Change this based on your task (1 for binary, 10 for MNIST, etc.)
     input_channels = 3
-    #model = LeNet5(input_channels=input_channels, num_classes=num_classes)
-    model = create_model(model_constructor_info["constructor"], **final_model_kwargs)
+    model = LeNet5(input_channels=input_channels, num_classes=num_classes)
+    #model = create_model(model_constructor_info["constructor"], **final_model_kwargs)
     # ADDED to adapt LeNet5 to binary classification
     #model.fc[-1] = nn.Linear(in_features = 84, out_features=1)
     return {"model": model, "repo": model_constructor_info.get("repo", None)}
