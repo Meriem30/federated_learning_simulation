@@ -2,7 +2,7 @@ import copy
 import os
 import threading
 from typing import Any, Callable, Generator, Iterable
-
+import copy
 import torch
 import torch.utils.data
 from other_libs.fs.ssd import is_ssd
@@ -96,6 +96,13 @@ class DatasetCollection:
         """
             Set a subset of a dataset for a specific phase based on indices
         """
+        dataset = self.__datasets[phase]
+        dataset_size = len(dataset)
+        # Validate indices
+        invalid_indices = [idx for idx in indices if idx >= dataset_size]
+        if invalid_indices:
+            raise ValueError(f"Invalid indices detected: {invalid_indices} (Dataset size: {dataset_size})")
+
         self.transform_dataset(
             phase=phase,
             transformer=lambda _, dataset_util, *__: dataset_util.get_subset(indices),
@@ -112,7 +119,7 @@ class DatasetCollection:
         """
             Retrieve the dataset for a specific phase
         """
-        return self.__datasets[phase]
+        return self.__datasets[phase] if phase != MachineLearningPhase.Validation else copy.deepcopy(self.__datasets[phase])
 
     def get_transforms(self, phase: MachineLearningPhase) -> Transforms:
         """
