@@ -37,9 +37,7 @@ class ClientState:
         self._mi = mutual_information
 
     def __repr__(self):
-        return (f"{self._client_id}:\n"
-                f"mutual_information={self._mi}\n"
-                f"family={self._family})\n")
+        return f"worker {self._client_id}: mutual_info: {self._mi:.2f}, family: {self._family}"
 
     def to_dict(self) -> dict:
         return {

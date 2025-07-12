@@ -20,7 +20,7 @@ class DistributedTrainingConfig(Config):
         self.algorithm_kwargs: dict = {}
         self.worker_number: int = 0
         self.round: int = 0
-        self.dataset_sampling: str = "iid"
+        self.dataset_sampling: str = "dirichlet_split"
         self.dataset_sampling_kwargs: dict[str, Any] = {}
         self.endpoint_kwargs: dict = {}
         self.exp_name: str = "selection_exps"

@@ -243,7 +243,7 @@ class GraphAggregationWorker(GraphWorker, AggregationWorker, ClientMixin):  # Ag
                 X=worker_outputs, Y=server_outputs, possible_values=labels
             )
 
-            log_warning("This is resulted calculated MI %s for estimation round %s ", estimated_values[i], i)
+            log_info("This is resulted calculated MI %s for estimation round %s ", estimated_values[i], self.round_index)
 
             ##################### Step 8: Reset Trainer Inferencer ##########
             trainer_inferencer.dataset_collection.set_subset(
@@ -381,12 +381,12 @@ class GraphAggregationWorker(GraphWorker, AggregationWorker, ClientMixin):  # Ag
         #if self.config.round > self.round_index:
         #    self._compute_worker_mi()
         #log_info("******************************************************** saved parameter %s ", self.__model_cache.parameter)
-        log_debug("communicate node state to server with sent data: ", self._communicate_node_state)
+        log_debug("enabled flag to communicate node_state to server along with sent data: %s", self._communicate_node_state)
         if self._communicate_node_state:
             other_data["node_state"] = (
                 self._get_client_state(self.worker_id)
             )
-            log_info("worker %s node_state added to other data: %s", self.worker_id, other_data)
+            log_debug("worker %s node_state added to other data: %s", self.worker_id, other_data)
             #log_info("worker %s mi in graph_aggregation_worker %s", self.worker_id, self.__mi)
             assert other_data["node_state"] is not None
         # create ParameterMessage or DeltaParameterMessage
@@ -439,17 +439,16 @@ class GraphAggregationWorker(GraphWorker, AggregationWorker, ClientMixin):  # Ag
         # ADDED to handle graphs
         # check if family assignment has changed
         other_data = result.other_data
-        log_debug("load family assignments data from server to check changes")
+        log_warning("load family assignments data from server to check changes !")
+        log_info("current family: %s, for worker: %s", self.state.family, self.worker_id)
         new_family = self._load_family_assignment_from_server(other_data)
+        log_info("attributed family: %s, for worker: %s", new_family, self.worker_id)
         # change it in the client state
         if new_family != 0 & new_family != self.state.family:
-            log_info("change to be made for worker %s. old family:  %s => new family assigned: %s",
-                     self.worker_id,
-                     self.state.family,
-                     new_family)
+            log_warning("change to be made for worker %s family")
             # set the new family
             self.state.set_family(new_family)
-            log_info("the new effective family state for worker %s is family %s",
+            log_warning("new set family for worker %s is: %s",
                      self.worker_id,
                      self.state.family)
         # load params into the trainer
