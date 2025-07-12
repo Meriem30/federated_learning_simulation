@@ -1,5 +1,6 @@
 import os
 
+from other_libs.log import log_warning
 from other_libs.storage import DataStorage
 
 from ..device import get_cpu_device
@@ -80,7 +81,9 @@ class KeepModelHook(Hook):
         trainer = executor
         if self.save_last_model:
             trainer.save_model(
-                os.path.join(self.__get_model_dir(trainer.save_dir), "last.pt")
+                os.path.join(self.__get_model_dir(trainer.save_dir), f"{trainer.device}_","last.pt")
             )
+            log_warning(
+                f"{trainer.device} model saved at {trainer.save_dir} ")
         if self.save_best_model:
             self.__best_model.save()

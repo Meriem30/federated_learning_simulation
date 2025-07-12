@@ -25,7 +25,7 @@ class HookConfig:
         self.profile = False
         self.use_amp = False
         self.benchmark_cudnn: bool = True
-        self.use_performance_metric: bool = True
+        self.use_performance_metric: bool = False
         self.use_slow_performance_metrics: bool = False
         self.log_performance_metric: bool = True
         self.save_performance_metric = False
