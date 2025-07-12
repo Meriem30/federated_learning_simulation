@@ -50,9 +50,13 @@ class ExecutorPool:
         )
         results: dict = {}
         for future in done_futures:
-            result = future.result()
-            get_logger().debug("future result is %s", result)
-            results[future] = result
+            try:
+                result = future.result()
+                get_logger().debug("future result is %s", result)
+                results[future] = result
+            except Exception as e:
+                get_logger().error("Error in future result: %s", e, exc_info=True)
+                results[future] = f"{e}"  # or you could raise, or flag it
         self.__futures.clear()
         return results, not_done_futures
 
