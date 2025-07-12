@@ -75,7 +75,7 @@ def get_model(
             model_kwargs["num_classes"] = dataset_collection.label_number  # E:
             log_debug("detect %s classes", model_kwargs["num_classes"])
         else:
-            assert model_kwargs["num_classes"] == dataset_collection.label_number  # E:
+            assert model_kwargs["num_classes"] >= dataset_collection.label_number  # E:
     if model_type == ModelType.Detection:
         model_kwargs["num_classes"] += 1
     model_kwargs["num_labels"] = model_kwargs["num_classes"]
