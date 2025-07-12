@@ -5,7 +5,7 @@ import torch.utils.data
 import torch.utils.data.datapipes
 import torch.utils.data.dataset
 
-from other_libs.log import log_debug, log_info
+from other_libs.log import log_debug, log_info, log_warning
 from ..ml_type import OptionalIndicesType
 
 
@@ -28,15 +28,17 @@ def get_dataset_size(dataset: Any) -> int:
             return mask.sum()
     # if none of the above, but dataset has len attribute, return it
     if hasattr(dataset, "__len__"):
-        log_debug("returning the len attr")
-        log_debug("dataset type %s ", type(dataset))
-        len_data = len(dataset)
+        log_debug("len processing for %s dataset type ", type(dataset))
+        len_data = dataset.__len__() # len(dataset)
+        log_warning("returning the dataset len attribute : %s ", len_data)
         return len_data
     match dataset:
         # if data is IterableDataset() to be loaded on the fly, rather than fully loaded in memory
         case torch.utils.data.IterableDataset():
             # count the number of its elements
-            return sum(1 for _ in dataset)
+            len_data = sum(1 for _ in dataset)
+            log_warning("returning the len dataset calculated : %s ", len_data)
+            return len_data
     raise NotImplementedError(dataset)
 
 
@@ -131,7 +133,7 @@ def select_item(dataset: Any, indices: OptionalIndicesType = None) -> Generator:
                         indices.remove(idx)
         # Default case: return all the dataset element
         case _:
-            log_info("get all the dataset samples")
+            log_debug("get all the dataset samples")
             if indices is None:
                 indices = list(range(get_dataset_size(dataset)))
             # Iterate over indices and yield (idx, data) for each index in the set
@@ -158,7 +160,7 @@ def subset_dp(
     # list(dict(select_item(dataset, indices)).values()): Extracts the values from the dict
     # and converts them into a list
     # torch.utils.data.datapipes.map.SequenceWrapper: Wraps this list into a SequenceWrapper (a type of MapDataPipe)
-    log_info("getting data subsets ...")
+    log_warning("getting data subsets ...")
     return torch.utils.data.datapipes.map.SequenceWrapper(
         list(dict(select_item(dataset, indices)).values()), deepcopy=False
     )

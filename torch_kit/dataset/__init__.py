@@ -35,12 +35,12 @@ def create_dataset_collection(
         if res is None:
             raise NotImplementedError(name)
         dataset_type, datasets = res
-        log_info("this is dataset_type after calling get_dataset method: %s ", dataset_type)
-        print("this is datasets after calling get_dataset method: ", datasets)
+        log_debug("DATA_TYPE within get_dataset method: %s", dataset_type)
+        log_debug("DATASETS after calling get_dataset method:\n %s", datasets)
         constructor = global_dataset_collection_factory.get(dataset_type)
         if constructor is None:
             constructor = DatasetCollection
-            log_info("after initializing, our constructor func type: %s ", type(constructor))
+            log_debug("after initializing, our constructor func type: %s ", type(constructor).__name__)
         dc: DatasetCollection = constructor(
             datasets=datasets,
             dataset_type=dataset_type,
@@ -101,8 +101,8 @@ class DatasetCollectionConfig:
                 assert real_dataset_type is not None
                 self.dataset_kwargs["dataset_type"] = real_dataset_type
             assert isinstance(self.dataset_kwargs["dataset_type"], DatasetType)
-        log_info("the dataset_type is set correctly along with other dataset args: %s", self.dataset_kwargs.items())
-        log_info("about to call the create_dataset_collection from the DatasetCollectionConfig class with arg 'name' : %s ", self.dataset_name)
+        log_debug("the dataset_type is set correctly along with other dataset args: %s", self.dataset_kwargs.items())
+        log_debug("about to call the create_dataset_collection from the DatasetCollectionConfig class with arg 'name' : %s ", self.dataset_name)
         dc = create_dataset_collection(
             name=self.dataset_name, dataset_kwargs=self.dataset_kwargs
         )

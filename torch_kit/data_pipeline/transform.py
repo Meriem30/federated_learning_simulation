@@ -145,7 +145,7 @@ class Transforms:
             Optionally, transfers data to the specific device
             :return: the transformed dataset and the modified 'new_transforms'
         """
-        log_debug("cache dataset to device: %s", device)
+        log_debug("cache transformed dataset to device: %s", device)
         # Initialize a dict for the transformed data
         transformed_dataset: dict = {}
         # Iterate abd apply input and target data
