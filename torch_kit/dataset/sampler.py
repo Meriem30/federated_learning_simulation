@@ -143,7 +143,7 @@ class DatasetSampler:
         if labels is None:
             #print("labels are non")
             labels = list(self.label_sample_dict.keys())
-            log_debug("labels: %", labels)
+            log_debug("labels: %s", labels)
         return self.split_indices(
             part_proportions=[{label: part for label in labels} for part in parts],
             labels=labels,

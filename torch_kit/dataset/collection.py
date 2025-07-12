@@ -222,9 +222,8 @@ class DatasetCollection:
         """
         assert self.has_dataset(phase=from_phase)
         assert parts
-        log_debug("split %s dataset for %s", from_phase, self.name)
+        log_debug("iid_split %s dataset for %s", from_phase, self.name)
         part_list = list(parts.items())
-        #print("part_list", part_list)
 
         sampler = DatasetSampler(dataset_util=self.get_dataset_util(phase=from_phase))
         datasets = sampler.iid_split([part for (_, part) in part_list])

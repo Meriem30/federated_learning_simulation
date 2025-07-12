@@ -1,7 +1,7 @@
 import copy
 import functools
 from typing import Self
-from other_libs.log import log_debug
+from other_libs.log import log_debug, log_warning
 
 from ..ml_type import MachineLearningPhase
 from .collection import DatasetCollection
@@ -41,6 +41,8 @@ class ClassificationDatasetCollection:
             if self.name.lower() == "imagenet":
                 # For imagenet, return a set of predefined a set of labels (0-999)
                 return set(range(1000))
+            if self.name.lower() == "mnist":
+                return set(range(10))
             labels = set()
             # simplified label counter (pushed)
             #for phase in (
@@ -53,7 +55,7 @@ class ClassificationDatasetCollection:
             #    if self.__dc.has_dataset(phase):
             #        labels |= self.__dc.get_dataset_util(phase).get_labels()
             labels = self.__dc.get_dataset_util(phase=MachineLearningPhase.Training).get_labels()
-            log_debug("labels %s ", labels)
+            log_warning("labels %s ", labels)
             return labels
 
         if not use_cache:
@@ -64,7 +66,7 @@ class ClassificationDatasetCollection:
     def is_mutilabel(self) -> bool:
         # Check if dataset samples are multi-label
         def computation_fun() -> bool:
-            if self.name.lower() == "imagenet" or self.name.lower() == "cifar10":
+            if self.name.lower() == "imagenet" or self.name.lower() == "cifar10" or self.name.lower() == "cifar100" or self.name.lower() == "mnist" or self.name.lower() == "fashionmnist":
                 return False
             for _, labels in self.__get_first_dataset_util().get_batch_labels():
                 if len(labels) > 1:

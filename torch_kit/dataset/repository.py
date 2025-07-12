@@ -3,7 +3,7 @@ import copy
 from typing import Any, Callable
 import pickle
 
-from other_libs.log import log_debug, log_error, log_info
+from other_libs.log import log_debug, log_error, log_info, log_warning
 from other_libs.reflection import get_kwarg_names
 
 from ..dataset.util import global_dataset_util_factor
@@ -112,8 +112,7 @@ def __create_dataset(
     if dataset_kwargs is None:
         dataset_kwargs = {}
     constructor_kwargs = get_kwarg_names(dataset_constructor.__init__)
-    log_info("here is constructor kwargs: %s ", constructor_kwargs)
-    log_info("here is cache_dir: %s ", cache_dir)
+    log_debug("constructor kwargs passed to __create_dataset: %s ", constructor_kwargs)
     dataset_kwargs_fun = __prepare_dataset_kwargs(
         constructor_kwargs=constructor_kwargs,
         dataset_kwargs=dataset_kwargs,
@@ -134,7 +133,7 @@ def __create_dataset(
                 cache_key = (dataset_name, dataset_type, phase)
                 dataset = __dataset_cache.get(cache_key, None)
                 if dataset is None:
-                    log_info("*************dataset was not found in cache")
+                    log_warning("%s dataset was not found in cache", phase)
                     dataset = dataset_constructor(**processed_dataset_kwargs)
                     if dataset_type == DatasetType.Graph:
                         assert len(dataset) == 1
@@ -210,7 +209,7 @@ def get_dataset(
 
     if real_dataset_type is not None:
         assert isinstance(real_dataset_type, DatasetType)
-        log_info("use dataset type %s", real_dataset_type)
+        log_info("use dataset type: %s", real_dataset_type)
         assert real_dataset_type in __global_dataset_constructors
         dataset_types = [real_dataset_type]
 
@@ -220,11 +219,12 @@ def get_dataset(
         constructor = __global_dataset_constructors[dataset_type].get(
             name, case_sensitive=True, cache_dir=cache_dir
         )
-        log_info("the standard constructor being initialized by getting it from __global_dataset_constructors %s ", constructor)
-        log_info("this is what we have in __global_dataset_constructors %s ",__global_dataset_constructors.items() )
+        log_debug("these are the objects stored in our __global_dataset_constructors %s ",__global_dataset_constructors.items())
+        log_debug("the standard constructor has been initialized by getting it from __global_dataset_constructors %s ",
+                  constructor)
         if constructor is not None:
-            log_info("constructor is NOT None")
-            log_info("printing parameter before calling __create_dataset \n dataset_name= %s \n dataset_type= %s \n dataset_constructor= %s \n dataset_kwargs= %s \n cache_dir= %s \n",
+            log_warning("dataset constructor has been initialized")
+            log_debug("printing parameter before calling __create_dataset \n dataset_name= %s \n dataset_type= %s \n dataset_constructor= %s \n dataset_kwargs= %s \n cache_dir= %s \n",
                      name,
                      dataset_type,
                      constructor,
