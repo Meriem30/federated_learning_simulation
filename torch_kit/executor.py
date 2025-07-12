@@ -9,7 +9,7 @@ from typing import Any, Callable, Generator
 import torch
 import torch.cuda
 import torch.utils.data
-from other_libs.log import log_debug
+from other_libs.log import log_debug, log_warning
 from torch import Stream
 
 from .data_pipeline.loader import get_dataloader
@@ -344,7 +344,7 @@ class Executor(HookCollection, abc.ABC):
             # Ensure all operations in CUDA stream are completed before switching device
             self.wait_stream()
             self.__device = device
-            log_debug("%s use device %s", str(self.__phase), self.__device)
+            log_warning("%s use device %s", str(self.__phase), self.__device)
             self.__stream = None
             self.__dataloader = None
 

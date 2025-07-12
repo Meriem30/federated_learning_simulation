@@ -36,6 +36,9 @@ class Config(ConfigBase):
             save_dir=self.get_save_dir(),
         )
         log_debug("this is the returned dc : %s ", dc)
+        log_debug("dc has Training dataset : %s", dc.has_dataset(MachineLearningPhase.Training))
+        log_debug("dc has Validation dataset: %s", dc.has_dataset(MachineLearningPhase.Validation))
+        log_debug("dc has Test dataset: %s", dc.has_dataset(MachineLearningPhase.Test))
         return dc
 
     def create_trainer(

@@ -122,10 +122,25 @@ class Inferencer(Executor):
                 self.remove_named_hook(name=hook_name)
 
         # Ensure lists are concatenated into a single tensor
-        final_model_output = torch.cat(sample_results["model_output"], dim=0) if sample_results[
-            "model_output"] else torch.tensor([])
-        final_targets = torch.cat(sample_results["targets"], dim=0) if sample_results["targets"] else torch.tensor([])
+        #final_model_output = torch.cat(sample_results["model_output"], dim=0) if sample_results["model_output"] else torch.tensor([])
+        #final_targets = torch.cat(sample_results["targets"], dim=0) if sample_results["targets"] else torch.tensor([])
+        # Normalize shapes before concatenation
+        outputs = sample_results.get("model_output", [])
+        targets = sample_results.get("targets", [])
 
+
+        # Ensure all outputs are at least 2D (e.g., [1, num_classes])
+        normalized_outputs = [o.unsqueeze(0) if o.dim() == 1 else o for o in outputs]
+        normalized_targets = [t.unsqueeze(0) if t.dim() == 0 else t for t in targets]
+
+        for i, t in enumerate(normalized_outputs):
+            log_warning("Output tensor {%s}: shape {%s}", i, t.shape)
+        for  i, t in enumerate(normalized_targets):
+            log_warning("Target tensor {%s}: shape {%s}", i, t.shape)
+
+
+        final_model_output = torch.cat(normalized_outputs, dim=0) if normalized_outputs else torch.tensor([])
+        final_targets = torch.cat(normalized_targets, dim=0) if normalized_targets else torch.tensor([])
         #log_info("Final model output shape: %s", final_model_output.shape)
         #log_info("Final targets shape: %s", final_targets.shape)
 
