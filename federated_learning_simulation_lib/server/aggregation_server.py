@@ -2,7 +2,7 @@ import os
 import pickle
 from typing import Any
 
-from other_libs.log import log_debug, log_info
+from other_libs.log import log_debug, log_info, log_warning
 from torch_kit import Inferencer, ModelParameter
 from torch_kit.tensor import tensor_to
 
@@ -143,7 +143,7 @@ class AggregationServer(Server, PerformanceMixin, RoundSelectionMixin):
             update the aggregation
             rend the result back to worker
         """
-        log_debug("before processing worker data, ensure that the server set the algo correctly", self.__algorithm)
+        log_warning("before processing worker data, ensure that the server set the algo %s correctly", self.__algorithm)
         assert 0 <= worker_id < self.worker_number
         log_debug("getting data from worker %s", worker_id)
         if data is not None:

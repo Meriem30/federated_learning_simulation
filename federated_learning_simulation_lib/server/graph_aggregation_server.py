@@ -44,7 +44,7 @@ class GraphAggregationServer(Server, PerformanceMixin, RoundSelectionMixin):
         }
         self._families = {i: [] for i in range(self.config.family_number)} if self.config.family_number != 0 else {}
         self._initialize_network()
-        self.__root_graph_folder = os.path.join("graph_spectral_clustering_images", datetime.now().strftime("%Y-%m-%d_%H:%M:%S"))
+        self.__root_graph_folder = os.path.join("graph_spectral_clustering_images", datetime.now().strftime("%Y_%m_%d_%H-%M-%S"))
 
     @property
     def early_stop(self) -> bool:
@@ -101,7 +101,7 @@ class GraphAggregationServer(Server, PerformanceMixin, RoundSelectionMixin):
                     in_round=True, parameter=self.__get_init_model(), is_initial=True
                 )
             )
-        log_error("*********************** *********************** distribute init params. Round after send results to worker %s", self.round_index)
+        log_warning("*********** distribute init params. Round %s send_results to workers", self.round_index)
 
     def _send_result(self, result: Message) -> None:
         """
@@ -141,7 +141,7 @@ class GraphAggregationServer(Server, PerformanceMixin, RoundSelectionMixin):
                 # if other result type, broadcast to all workers
                 self._endpoint.broadcast(data=result)
         # post-send hook
-        log_debug("this is _sent_result end !")
+        log_warning("_sent_result from server ends !")
         self._after_send_result(result=result)
 
     def _server_exit(self) -> None:
@@ -174,8 +174,8 @@ class GraphAggregationServer(Server, PerformanceMixin, RoundSelectionMixin):
                     weight = adjacency_matrix[i][j]
                     if weight > 0:
                         self._network.add_edge(i, j, weight=weight)
-            self._save_and_print_graph()
-            print("Graph updated with new nodes and edges.")
+            #self._save_and_print_graph()
+            #print("Graph updated with new nodes and edges.")
         else:
             log_warning("adjacency_matrix is %s ", adjacency_matrix)
 
@@ -240,9 +240,9 @@ class GraphAggregationServer(Server, PerformanceMixin, RoundSelectionMixin):
             update the aggregation
             rend the result back to worker
         """
-        log_debug("before processing worker data, ensure that the server set the algo correctly", self.__algorithm)
+        log_warning("before processing worker data, ensure that the server set the algo %s correctly", self.__algorithm)
         assert 0 <= worker_id < self.worker_number
-        log_info("getting data from worker %s", worker_id)
+        log_debug("getting data from worker %s ..", worker_id)
         if data is not None:
             if data.end_training:
                 # set the stop flag if the training ended
@@ -264,11 +264,11 @@ class GraphAggregationServer(Server, PerformanceMixin, RoundSelectionMixin):
                     data.parameter = tensor_to(data.parameter, device="cpu")
             assert data.other_data
             client_state = data.other_data["node_state"]
-            log_info("server has extracted the worker %s state", worker_id)
-            log_info(repr(client_state))
+            log_warning("server has extracted the worker %s state", worker_id)
+            log_warning(repr(client_state))
             self._graph_client_states[worker_id] = client_state
             self._network.nodes[worker_id]['state'] = client_state
-            log_info("server network updated with the new worker %s state", worker_id)
+            log_info("server graph network has been updated with the new worker %s state", worker_id)
         # process the worker data using the aggregation algorithm
         log_info("this is before calling process_worker_data of the algo")
         self.__algorithm.process_worker_data(worker_id=worker_id, worker_data=data)

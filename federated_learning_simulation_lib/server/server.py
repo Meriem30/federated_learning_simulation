@@ -43,7 +43,7 @@ class Server(Executor, RoundSelectionMixin, NodeSelectionMixin):
     @property
     def selected_worker_number(self) -> int:
         if not self.config.algorithm_kwargs.get("node_sample_percent", 1.0):
-            return self.config.algorithm_kwargs.get("node_sample_percent") * self.worker_number
+            return int(round(self.config.algorithm_kwargs.get("node_sample_percent") * self.worker_number))
         elif not self.config.algorithm_kwargs.get("random_client_number", True):
             return self.config.algorithm_kwargs.get("random_client_number")
         return self.worker_number
@@ -89,7 +89,7 @@ class Server(Executor, RoundSelectionMixin, NodeSelectionMixin):
         tester.model_util.disable_running_stats()
         tester.hook_config.use_performance_metric = True
         tester.hook_config.log_performance_metric = log_performance_metric
-        tester.hook_config.save_performance_metric = False
+        tester.hook_config.save_performance_metric = True
         # adjust the batch size
         batch_size: int | None = None
         if "server_batch_size" in tester.dataloader_kwargs:
@@ -134,8 +134,8 @@ class Server(Executor, RoundSelectionMixin, NodeSelectionMixin):
         worker_set: set = set()
         while not self._stopped():
             if not worker_set:
-                # worker_set = set(range(min(self._endpoint.worker_num, self.selected_worker_number)))
-                worker_set = set(range(self._endpoint.worker_num))
+                worker_set = set(range(min(self._endpoint.worker_num, self.selected_worker_number)))
+                #worker_set = set(range(self._endpoint.worker_num))
             assert self._endpoint.worker_num == self.config.worker_number
             for worker_id in copy.copy(worker_set):
                 has_data: bool = self._endpoint.has_data(worker_id)

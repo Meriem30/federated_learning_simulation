@@ -69,8 +69,10 @@ class PerformanceMixin(AggregationServerProtocol):
         self.__keys.append(key)
         self.__stat[key] = round_stat
         # save the stat to a json file
+        round_record_path = os.path.join(self.save_dir, "round_record.json")
+        os.makedirs(os.path.dirname(round_record_path), exist_ok=True)
         with open(
-            os.path.join(self.save_dir, "round_record.json"),
+            round_record_path,
             "wt",
             encoding="utf8",
         ) as f:
