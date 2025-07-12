@@ -247,7 +247,7 @@ class AggregationWorker(Worker, ClientMixin):
         # continue to request data from the server until valid data is received
         while True:
             result = super()._get_data_from_server()
-            log_debug("get result from server %s", type(result))
+            log_debug("worker %s getting result from server  of type : %s", self.worker_id, type(result), )
             if result is None:
                 log_info("skip round %s", self.round_index)
                 self._send_data_to_server(None)
