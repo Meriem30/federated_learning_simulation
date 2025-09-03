@@ -32,7 +32,7 @@ MANIFEST
 *.manifest
 *.spec
 
-# Installer logs
+# Installer log
 pip-log.txt
 pip-delete-this-directory.txt
 
@@ -159,7 +159,7 @@ cython_debug/
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 .idea/
 .img_clss_pkgs/
-
+*/results
 
 # graph saved images directory
 /federated_learning_simulator/graph_spectral_clustering_images
