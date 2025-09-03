@@ -5,6 +5,7 @@ from scipy.linalg import eigh
 from .laplacian import Laplacian
 from .similarity import compute_similarity_matrix
 from sklearn.cluster import KMeans
+from scipy.sparse import csr_matrix
 from .graph_construction import GraphType, GraphConstructor
 from .similarity import SimilarityType
 from .laplacian import LaplacianType
@@ -13,59 +14,73 @@ from other_libs.log import log_info
 
 
 class SpectralClustering:
-    """ Perform the spectral clustering algorithm based on the specified configuration """
-    def __init__(self, graph_type: GraphType, threshold: float, num_neighbors: int, laplacian_type: LaplacianType,
-                 similarity_function: SimilarityType, num_clusters: int):
-        self.graph_type = graph_type
-        self.num_neighbors = num_neighbors
-        self.threshold = threshold
-        self.similarity_function = similarity_function
-        self.laplacian_type = laplacian_type
-        self.num_clusters = num_clusters
+    """
+        Performs the spectral clustering algorithm based on a specified configuration.
+        This class is optimized for scalability and clean design.
+        """
+
+    def __init__(self, config: dict):
+        """
+        Initializes the SpectralClustering object with a configuration dictionary.
+
+        Args:
+            config: A dictionary containing all necessary parameters:
+                - 'graph_type': GraphType enum.
+                - 'num_neighbors': int, for KNN graphs.
+                - 'threshold': float, for epsilon-neighborhood graphs.
+                - 'similarity_function': SimilarityType enum.
+                - 'laplacian_type': LaplacianType enum.
+    """
+        self.config = config
         self.adjacency_matrix = None
 
-    def fit(self, data):
-        # Step 1: create similarity matrix
-        similarity_matrix = compute_similarity_matrix(data, self.similarity_function)
-        log_info("************** This is the similarity matrix ***************** \n %s", similarity_matrix)
-        # Step 2: prepare the kwargs to be passed to the GraphConstructor
-        kwargs = {
-            'num_neighbors': self.num_neighbors,
-            'threshold': self.threshold,
+    def fit(self, data: np.ndarray) -> np.ndarray:
+        """
+        Executes the full spectral clustering pipeline on the input data.
+
+        Args:
+            data: The input data matrix where rows are data points.
+
+        Returns:
+            An array of cluster labels for each data point.
+        """
+        # Step 1: Create similarity matrix
+        # This function is not provided, so it's assumed to exist
+        similarity_matrix = compute_similarity_matrix(data, self.config['similarity_function'])
+
+        # Step 2: Construct the graph
+        log_info(f"Graph construction started with type: {self.config['graph_type'].name}")
+        graph_params = {
+            'num_neighbors': self.config.get('num_neighbors', 5),
+            'threshold': self.config.get('threshold', 0.5),
         }
-        graph_constructor = GraphConstructor(self.graph_type, **kwargs)
-        log_info("************** This is the constructed graph ***************** \n %s", graph_constructor)
+        graph_constructor = GraphConstructor(self.config['graph_type'], **graph_params)
+        self.adjacency_matrix = graph_constructor.construct_graph(similarity_matrix)
 
-        # Call the graph construction function the on created instance
-        adjacency_matrix = graph_constructor.construct_graph(similarity_matrix)
-        self.adjacency_matrix = adjacency_matrix
-        log_info("************** This is the adjacency matrix ***************** \n %s", adjacency_matrix)
-        # Step 3: prepare the laplacian instance (only initiate class attributes)
-        laplacian = Laplacian(adjacency_matrix, self.laplacian_type)
-        log_info("************** This is the Laplacian ***************** \n %s", laplacian)
+        # Log concise information about the sparse graph
+        if isinstance(self.adjacency_matrix, csr_matrix):
+            log_info(f"Graph constructed. Shape: {self.adjacency_matrix.shape}, "
+                     f"NNZ: {self.adjacency_matrix.nnz}")
+            log_info("************** This is the adjacency matrix ***************** \n %s", self.adjacency_matrix)
+        else:
+            log_info(f"Graph constructed. Shape: {self.adjacency_matrix.shape}")
 
-        # Step 4: compute the Laplacian & get the eigenvectors (use the smallest k eigenvectors)
-        _, top_k_eigenvectors = laplacian.sorted_spectral_decomposition(self.num_clusters, is_descent=False)
-        log_info("************** This is the top k eigenvectors ***************** \n %s", top_k_eigenvectors)
+        # Step 3: Prepare and compute the Laplacian
+        log_info(f"Laplacian computation started with type: {self.config['laplacian_type'].name}")
+        laplacian = Laplacian(self.adjacency_matrix, self.config['laplacian_type'])
 
-        # Step 5: apply KMeans clustering on the eigenvectors
-        kmeans = KMeans(n_clusters=self.num_clusters)
+        # Step 4: Perform spectral decomposition
+        # Use the `spectral_decomposition` method which returns only eigenvectors.
+        # It's more direct for the clustering task.
+        log_info("Performing spectral decomposition to get top eigenvectors.")
+        top_k_eigenvectors = laplacian.spectral_decomposition(self.config['num_clusters'])
+        log_info(f"Obtained eigenvectors matrix with shape: {top_k_eigenvectors.shape}")
+
+        # Step 5: Apply KMeans clustering on the eigenvectors
+        log_info(f"Applying KMeans with {self.config['num_clusters']} clusters.")
+        kmeans = KMeans(n_clusters=self.config['num_clusters'], n_init=10)
         kmeans.fit(top_k_eigenvectors)
-        labels =  kmeans.labels_
+        labels = kmeans.labels_
+        log_info("KMeans clustering complete.")
 
-        """# Step 5: Extract both types of centroids
-        spectral_centroids = kmeans.cluster_centers_  # Centroids in eigenvector space
-        real_centroids = []  # Closest real data points
-
-        for cluster_idx in range(self.num_clusters):
-            cluster_points_idx = np.where(labels == cluster_idx)[0]
-            cluster_points = data[cluster_points_idx]
-
-            if len(cluster_points) > 0:
-                closest_idx = np.argmin(
-                    np.linalg.norm(top_k_eigenvectors[cluster_points_idx] - spectral_centroids[cluster_idx], axis=1))
-                real_centroids.append(cluster_points[closest_idx])
-            else:
-                real_centroids.append(None)  # In case a cluster has no points (rare)"""
-
-        return labels # Return the cluster labels for each data point
+        return labels

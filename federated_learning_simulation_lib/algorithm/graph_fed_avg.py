@@ -1,6 +1,5 @@
 import random
-from typing import Any, MutableMapping
-
+from typing import Any, MutableMapping, Tuple
 import numpy as np
 import torch
 from other_libs.log import log_error, log_debug, log_info, log_warning
@@ -234,49 +233,67 @@ class GraphFedAVGAlgorithm(AggregationAlgorithm):
 
     # ADDED to handle spectral clustering
     def _convert_enum_properties(self) -> None:
+        """
+        Converts string values in the config dictionary to their corresponding enum members.
+        This ensures type safety and prevents errors in downstream classes.
+        """
         enum_mappings = {
             'similarity_function': SimilarityType,
             'graph_type': GraphType,
             'laplacian_type': LaplacianType,
-            # other mappings of enum types can be added here as needed
         }
-
         for attr, enum_type in enum_mappings.items():
             if hasattr(self.config, attr):
+                # Use getattr to get the value of the attribute
                 value = getattr(self.config, attr)
-                try:
-                    enum_value = enum_type[value]
-                    setattr(self.config, attr, enum_value)
-                    self._enum_converted = True
-                except KeyError:
-                    raise ValueError(f"Unknown {attr}: {value}")
+                if isinstance(value, str):
+                    try:
+                        # Look up the enum member by name (case-insensitive)
+                        enum_value = enum_type[value.upper()]
+                        # Use setattr to set the attribute on the object
+                        setattr(self.config, attr, enum_value)
+                        # A boolean flag is not necessary if this method is called once
+                    except KeyError:
+                        raise ValueError(f"Unknown {attr}: {value}. Expected one of: {[e.name for e in enum_type]}")
+
 
     # ADDED to handle spectral clustering
-    def _perform_clustering(self, __client_states_array) -> np.array:
-        # convert the enum-like config attrs to have the enum member number
-        if not self._enum_converted:
-            self._convert_enum_properties()
-        # initialize the spectral clustering graph
-        clustering = SpectralClustering(
-            graph_type=self.config.graph_type,  # for graph construction
-            num_neighbors=self.config.num_neighbor,  # Number of neighbors for KNN
-            threshold=self.config.threshold,
-            laplacian_type=self.config.laplacian_type,  # Type of Laplacian
-            similarity_function=self.config.similarity_function,  # Similarity function
-            num_clusters=self.config.family_number  # Number of clusters (K)
-        )
+    def _perform_clustering(self, client_states_array: np.ndarray) -> Tuple[np.ndarray, Any]:
+        """
+        Performs spectral clustering on the client states array
 
-        # Perform spectral clustering and get the result
+        Args:
+            client_states_array: The input data for clustering
+        Returns:
+            A tuple containing the cluster labels and the adjacency matrix
+        """
+        # Step 1: Convert string config values to enums
+        self._convert_enum_properties()
+
+        # Step 2: Initialize the spectral clustering class with the config dictionary
+        # This single-argument initialization is clean and scalable.
+        sc_config = {
+            "graph_type" : self.config.graph_type,  # for graph construction
+            "num_neighbors" : self.config.num_neighbor,  # Number of neighbors for KNN
+            "threshold" : self.config.threshold,
+            "laplacian_type" : self.config.laplacian_type,  # Type of Laplacian
+            "similarity_function" : self.config.similarity_function,  # Similarity function
+            "num_clusters" : self.config.family_number  # Number of clusters (K)
+        }
+        clustering = SpectralClustering(sc_config)
+
+        # Step 3: Perform spectral clustering and get the labels.
         labels = clustering.fit(self.__client_states_array)
         self._adjacency_matrix = clustering.adjacency_matrix
-        log_info(" this is the labels variable returned from the clustering : %s", labels)
-        #log_warning(" this is the centroids returned from the clustering : %s", centroids)
-        log_info(" this is the adjacency matrix returned from the clustering :\n %s", self._adjacency_matrix)
-        # Process the result
-        #self._process_clustering_results(labels)
+
+        # Step 4: Log results efficiently and concisely.
+        log_info("Labels returned from clustering: %s", labels)
+        # The adjacency matrix can be very large. Log its shape and sparsity instead of the full matrix.
+        if self._adjacency_matrix is not None:
+            log_info(
+                f"Adjacency matrix returned from clustering: Shape={self._adjacency_matrix.shape}, NNZ={self._adjacency_matrix.nnz}")
+
         return labels, self._adjacency_matrix
-
-
 
     @classmethod
     def aggregate_parameter(
