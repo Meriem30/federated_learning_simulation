@@ -1,0 +1,37 @@
+---
+dataset_name: CIFAR10
+model_name: densenet40
+distributed_algorithm: graph_fed_avg
+optimizer_name: SGD
+worker_number: 2
+worker_number_per_process: 1
+batch_size: 16
+round: 2
+learning_rate_scheduler_name: CosineAnnealingLR
+epoch: 1
+learning_rate: 0.001
+dataset_kwargs:
+    dataset_type: Vision
+    dataset_sampling: dirichlet_split
+    classes: [0,1,2,3,4,5,6,7,8,9]
+dataset_sampling_kwargs:
+    concentration: 0.1
+model_kwargs:
+    num_classes: 10
+algorithm_kwargs:
+    distribute_init_parameters: True
+    node_random_selection: False
+    node_sample_percent: 0.5
+graph_worker: True
+family_number: 2
+num_mi_trials: 2
+mi_evaluator_testdata_percent: 0.1
+graph_type: KNN
+num_neighbor: 2
+threshold: 0.0
+laplacian_type: RandomWalk
+similarity_function: Gaussian
+save_performance_metric: False
+log_performance_metric: True
+debug: False
+...
