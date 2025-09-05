@@ -6,4 +6,5 @@ use_amp: false
 use_performance_metric: true
 use_slow_performance_metrics: false
 log_performance_metric: true
+exp_name: niid_0.1
 ...
