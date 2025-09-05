@@ -106,7 +106,7 @@ class Worker:
 class BatchWorker(Worker):
     def __init__(self) -> None:
         super().__init__()
-        self.batch_size: int = 1
+        self.batch_size: int = 32
 
     def process(
         self,
@@ -157,7 +157,7 @@ class TaskQueue:
         self,
         mp_ctx: ConcurrencyContext,
         worker_num: int = 1,
-        batch_process: bool = False,
+        batch_process: bool = True,
     ) -> None:
         self.__mp_ctx = mp_ctx
         self.__worker_num: int = worker_num
