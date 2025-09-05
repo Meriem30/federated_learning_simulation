@@ -29,6 +29,7 @@ class GraphAggregationWorker(GraphWorker, AggregationWorker, ClientMixin):  # Ag
         ClientMixin.__init__(self)
         self._communicate_node_state: bool = True
         self._num_mi_trials: int = self.config.num_mi_trials
+        self._mi_evaluator_testdata_percent: float = self.config.mi_evaluator_testdata_percent
         self.__choose_model_by_validation: bool | None = None
         self.__model_cache: ModelCache = ModelCache()
         self.__worker_mi_evaluator: Inferencer
@@ -200,7 +201,7 @@ class GraphAggregationWorker(GraphWorker, AggregationWorker, ClientMixin):  # Ag
             assert self.__global_mi_evaluator.dataset_collection.has_dataset(MachineLearningPhase.Validation)
 
             ##################### Step 3: Extract Subset for Testing ##########
-            original_indices, sampled_indices = self._get_test_data_subset(0.3)
+            original_indices, sampled_indices = self._get_test_data_subset(self._mi_evaluator_testdata_percent)
 
             # ✅ Assign subset to both inferencers
             self.__worker_mi_evaluator.dataset_collection.set_subset(MachineLearningPhase.Validation,
