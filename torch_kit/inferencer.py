@@ -211,10 +211,10 @@ class Inferencer(Executor):
             sample_results["targets"] = []
 
         # Append results for this batch
-        sample_results["model_output"].append(predictions.clone().detach().to("cuda"))
+        sample_results["model_output"].append(predictions.clone().detach().to(self.device))
 
         # Store corresponding targets
-        sample_results["targets"].append(result["targets"].clone().detach().to("cuda"))
+        sample_results["targets"].append(result["targets"].clone().detach().to(self.device))
 
         #log_info("Accumulated model_output length: %s ", len(sample_results["model_output"]))
         #log_info("Accumulated targets length: %s ", len(sample_results["targets"]))
