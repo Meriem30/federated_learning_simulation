@@ -8,17 +8,23 @@ from typing import Union, Dict
 
 class SimilarityType(enum.Enum):
     """ Different types of Similarity Matrix."""
-    # Gaussian similarity function
-    Gaussian = enum.auto()
+    Gaussian = 'gaussian'
+    Euclidean = 'euclidean'
+    Cosine = 'cosine'
+    Customized = 'customized'
+    # This is a good practice to ensure the enum can be looked up from a string.
+    def __str__(self):
+        return self.value
 
-    # Euclidean similarity function
-    Euclidean = enum.auto()
+    def __repr__(self):
+        return self.value
 
-    # Cosine similarity function
-    Cosine = enum.auto()
-
-    # other customized similarity function
-    Customized = enum.auto()
+    @classmethod
+    def from_string(cls, name: str):
+        try:
+            return cls(name.lower())
+        except ValueError:
+            raise ValueError(f"Unknown similarity type: {name}. Must be one of {[e.value for e in cls]}")
 
 
 def normalize_data_matrix(data_matrix: np.ndarray) -> np.ndarray:

@@ -244,17 +244,13 @@ class GraphFedAVGAlgorithm(AggregationAlgorithm):
         }
         for attr, enum_type in enum_mappings.items():
             if hasattr(self.config, attr):
-                # Use getattr to get the value of the attribute
                 value = getattr(self.config, attr)
-                if isinstance(value, str):
-                    try:
-                        # Look up the enum member by name (case-insensitive)
-                        enum_value = enum_type[value.upper()]
-                        # Use setattr to set the attribute on the object
-                        setattr(self.config, attr, enum_value)
-                        # A boolean flag is not necessary if this method is called once
-                    except KeyError:
-                        raise ValueError(f"Unknown {attr}: {value}. Expected one of: {[e.name for e in enum_type]}")
+                try:
+                    enum_value = enum_type[value.lower()]
+                    setattr(self.config, attr, enum_value)
+                    self._enum_converted = True
+                except KeyError:
+                    raise ValueError(f"Unknown {attr}: {value}")
 
 
     # ADDED to handle spectral clustering
