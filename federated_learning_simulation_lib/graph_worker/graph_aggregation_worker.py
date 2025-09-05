@@ -28,6 +28,7 @@ class GraphAggregationWorker(GraphWorker, AggregationWorker, ClientMixin):  # Ag
         AggregationWorker.__init__(self, **kwargs)
         ClientMixin.__init__(self)
         self._communicate_node_state: bool = True
+        self._num_mi_trials: int = self.config.num_mi_trials
         self.__choose_model_by_validation: bool | None = None
         self.__model_cache: ModelCache = ModelCache()
         self.__worker_mi_evaluator: Inferencer
@@ -164,15 +165,14 @@ class GraphAggregationWorker(GraphWorker, AggregationWorker, ClientMixin):  # Ag
         log_info("Computing mutual information (MI)...")
 
         ############ Start MI estimation ##########
-        num_trials = 1
-        estimated_values = np.zeros(num_trials)
+        estimated_values = np.zeros(self._num_mi_trials)
         trainer_inferencer = self.trainer.get_inferencer(
             phase=MachineLearningPhase.Validation,
             inherent_device=True,
             deepcopy_model=True,  # Ensures we copy the model separately
         )
 
-        for i in range(num_trials):
+        for i in range(self._num_mi_trials):
             ##################### Step 1: Create Worker Inferencer ##########
 
             # ✅ Use shallow copy for inferencer to avoid re-copying dataset collection
@@ -182,8 +182,9 @@ class GraphAggregationWorker(GraphWorker, AggregationWorker, ClientMixin):  # Ag
             #self.__worker_mi_evaluator.running_model_evaluator.set_model(copy.deepcopy(
             #    trainer_inferencer.running_model_evaluator.model_util.model ))
 
-            # ✅ Move the model to CUDA for evaluation
-            self.__worker_mi_evaluator.running_model_evaluator.model_util.to_device("cuda")
+            # ✅ Move the model to CUDA for evaluation if available
+            if torch.cuda.is_available():
+                self.__worker_mi_evaluator.running_model_evaluator.model_util.to_device("cuda")
 
             assert self.__worker_mi_evaluator.dataset_collection.has_dataset(MachineLearningPhase.Validation)
             model1_params = self.__worker_mi_evaluator.running_model_evaluator.model_util.get_parameters()
@@ -193,7 +194,8 @@ class GraphAggregationWorker(GraphWorker, AggregationWorker, ClientMixin):  # Ag
             # ✅ Load the global model from cache (ensuring only the model changes)
             global_model_state_dict = self._get_aggregated_model_from_path(self.round_index)
             self.__global_mi_evaluator.running_model_evaluator.model_util.load_parameters(global_model_state_dict)
-            self.__global_mi_evaluator.running_model_evaluator.model_util.to_device("cuda")
+            if torch.cuda.is_available():
+                self.__global_mi_evaluator.running_model_evaluator.model_util.to_device("cuda")
 
             assert self.__global_mi_evaluator.dataset_collection.has_dataset(MachineLearningPhase.Validation)
 
