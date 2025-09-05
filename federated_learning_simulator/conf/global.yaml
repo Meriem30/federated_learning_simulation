@@ -3,5 +3,7 @@ cache_transforms: cpu
 log_level: INFO
 save_performance_metric: false
 use_amp: false
-use_slow_performance_metrics: true
+use_performance_metric: true
+use_slow_performance_metrics: false
+log_performance_metric: true
 ...

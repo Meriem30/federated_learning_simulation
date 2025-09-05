@@ -13,6 +13,8 @@ dataset_kwargs:
     dataset_type: Vision
     dataset_sampling: dirichlet_split
     classes: [0,1,2,3,4,5,6,7,8,9]
+dataset_sampling_kwargs:
+    concentration: 0.1
 model_kwargs:
     num_classes: 10
 algorithm_kwargs:

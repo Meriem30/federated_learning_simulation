@@ -20,7 +20,7 @@ global_config: DistributedTrainingConfig = DistributedTrainingConfig()
 # import_dependencies()
 
 
-@hydra.main(config_path="./conf", config_name="graph_fed_avg/pneumonia.yaml", version_base=None)
+@hydra.main(config_path="./conf", config_name="graph_fed_avg/test.yaml", version_base=None)
 def load_config(conf) -> None:
     global global_config
     global_config = __load_config(
