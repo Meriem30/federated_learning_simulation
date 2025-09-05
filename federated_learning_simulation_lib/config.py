@@ -31,6 +31,8 @@ class DistributedTrainingConfig(Config):
         # added to consider graphs
         self.graph_worker: bool = False
         # self.enable_clustering: bool = True
+        self.num_mi_trials: int = 1
+        self.mi_evaluator_testdata_percent: float | float = 0.1
         self.family_number: int = 0
         # ADDED to handle Spectral Clustering
         self.graph_type = None
@@ -101,7 +103,7 @@ class DistributedTrainingConfig(Config):
 
     def reset_session(self) -> None:
         """
-            reset the session by creating new directories for logs and session data
+            reset the session by creating new directories for log and session data
         """
         task_time = datetime.datetime.now()
         date_time = f"{task_time:%Y-%m-%d_%H_%M_%S}"
@@ -130,7 +132,7 @@ class DistributedTrainingConfig(Config):
             dir_suffix = os.path.join(self.exp_name, dir_suffix)
         # create the full path and assign it to save_dir
         self.save_dir = os.path.join("session", dir_suffix)
-        # create the full path for logs
+        # create the full path for log
         self.log_file = str(os.path.join("log", dir_suffix)) + ".log"
 
     def create_practitioners(self) -> set[Practitioner]:
