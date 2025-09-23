@@ -15,10 +15,10 @@ class LaplacianType(enum.Enum):
     Unnormalized = 'unnormalized'
 
     # The random walk view normalized Laplacian:  D^{-1} * L
-    RandomWalk = 'random_walk'
+    RandomWalk = 'randomwalk'
 
     # The graph cut view normalized Laplacian: D^{-1/2} * L * D^{-1/2}
-    GraphCut = 'graph_cut'
+    GraphCut = 'graphcut'
 
 class Laplacian:
     def __init__(self, adjacency_matrix: csr_matrix, laplacian_type: LaplacianType = LaplacianType.GraphCut,
@@ -30,8 +30,8 @@ class Laplacian:
             laplacian_type: The type of Laplacian to compute.
             eps: A small value for numerical stability.
         """
-        if not isinstance(adjacency_matrix, csr_matrix):
-            raise TypeError("Adjacency matrix must be a scipy.sparse.csr_matrix for efficiency and scalability.")
+        #if not isinstance(adjacency_matrix, csr_matrix):
+        #    raise TypeError("Adjacency matrix must be a scipy.sparse.csr_matrix for efficiency and scalability.")
 
         self.laplacian_type = laplacian_type
         self.adjacency_matrix = adjacency_matrix.copy()
@@ -83,11 +83,12 @@ class Laplacian:
             The eigenvectors corresponding to the smallest eigenvalues
         """
         laplacian_matrix = self.compute()
-
+        n = laplacian_matrix.shape[0]
+        k = max(1, min(num_clusters, n - 1))
         # Using `eigsh` from scipy.sparse.linalg for efficiency on sparse matrices.
         # `k` is the number of eigenvalues/eigenvectors to compute.
         # `which='SM'` finds the smallest magnitude eigenvalues.
-        eigenvalues, eigenvectors = eigsh(laplacian_matrix, k=num_clusters, which='SM', sigma=0.0)
+        eigenvalues, eigenvectors = eigsh(laplacian_matrix, k=k, which='SM', sigma=0.0)
 
         # Sort eigenvalues and corresponding eigenvectors
         idx = eigenvalues.argsort()
