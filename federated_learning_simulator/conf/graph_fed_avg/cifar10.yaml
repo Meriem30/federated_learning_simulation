@@ -4,31 +4,31 @@ model_name: densenet40
 distributed_algorithm: graph_fed_avg
 optimizer_name: SGD
 worker_number: 25
-batch_size: 64
-round: 50
+batch_size: 32
+round: 150
 learning_rate_scheduler_name: CosineAnnealingLR
-epoch: 3
-learning_rate: 0.001
+epoch: 5
+learning_rate: 0.01
+model_kwargs:
+    num_classes: 10
+    keep_model_cache: false
 dataset_kwargs:
     dataset_type: Vision
     dataset_sampling: dirichlet_split
     classes: [0,1,2,3,4,5,6,7,8,9]
 dataset_sampling_kwargs:
-    concentration: 0.1
-model_kwargs:
-    num_classes: 10
+  concentration: 0.1
 algorithm_kwargs:
     distribute_init_parameters: True
-    node_random_selection: False
-    node_sample_percent: 0.8
-graph_worker: True
+    node_sample_percent: 0.7
+    node_random_selection: false
+graph_worker: true
 family_number: 4
 graph_type: KNN
 num_neighbor: 2
 threshold: 0.0
 laplacian_type: RandomWalk
 similarity_function: Gaussian
-save_performance_metric: True
-log_performance_metric: True
-debug: True
+debug: false
+exp_name: "c10"
 ...
