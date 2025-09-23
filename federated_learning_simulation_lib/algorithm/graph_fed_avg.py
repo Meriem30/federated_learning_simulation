@@ -246,7 +246,7 @@ class GraphFedAVGAlgorithm(AggregationAlgorithm):
             if hasattr(self.config, attr):
                 value = getattr(self.config, attr)
                 try:
-                    enum_value = enum_type[value.lower()]
+                    enum_value = enum_type(value.lower())
                     setattr(self.config, attr, enum_value)
                     self._enum_converted = True
                 except KeyError:
