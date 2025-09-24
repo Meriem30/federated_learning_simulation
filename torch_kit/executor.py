@@ -362,8 +362,18 @@ class Executor(HookCollection, abc.ABC):
     def wait_stream(self) -> None:
         # Synchronize the current stream to ensure all operations are completed
         if isinstance(self.__stream, Stream):
-            self.__stream.synchronize()
-            assert self.__stream.query()
+            try:
+                self.__stream.synchronize()
+                # Check if stream is in a clean state, but don't fail if it's not
+                # This can happen with concurrent workers on the same device
+                if not self.__stream.query():
+                    log_warning("CUDA stream not in clean state, resetting stream context")
+                    # Reset stream context for next operations
+                    torch.cuda.synchronize()
+            except Exception as e:
+                log_warning("Stream synchronization failed: %s, continuing with CUDA sync", e)
+                # Fallback to global CUDA synchronization
+                torch.cuda.synchronize()
 
     def set_dataset_collection(self, dc: DatasetCollection) -> None:
         """

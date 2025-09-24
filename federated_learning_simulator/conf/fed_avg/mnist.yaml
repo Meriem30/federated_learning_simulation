@@ -4,7 +4,7 @@ model_name: LeNet5
 distributed_algorithm: fed_avg
 optimizer_name: SGD
 worker_number: 5
-batch_size: 64
+batch_size: 16
 round: 20
 learning_rate_scheduler_name: CosineAnnealingLR
 epoch: 2
@@ -17,7 +17,6 @@ algorithm_kwargs:
     node_sample_percent: 0.5
     node_random_selection: False
     random_client_number: 3
-family_number: 4
 graph_worker: False
 debug: True
 ...

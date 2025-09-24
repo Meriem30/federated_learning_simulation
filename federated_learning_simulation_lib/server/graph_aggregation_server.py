@@ -62,6 +62,15 @@ class GraphAggregationServer(Server, PerformanceMixin, RoundSelectionMixin):
     def round_index(self) -> int:
         return self._round_index
 
+
+    def selected_worker_number(self) -> int:
+        return len(self.get_selected_workers())
+
+    def get_selected_workers(self) -> set[int]:
+        if self._families.values() is not None and self.round_index != 1:
+            selected_workers  = self._select_workers_from_clusters(self._families)
+            return selected_workers
+        return range(self.worker_number)
     def get_tester(self, copy_tester: bool = False) -> Inferencer:
         """
             retrieve the inferencer
@@ -119,7 +128,7 @@ class GraphAggregationServer(Server, PerformanceMixin, RoundSelectionMixin):
                     self._endpoint.send(worker_id=worker_id, data=data)
             case ParameterMessageBase():
                 # if ParameterMessage or any subclass, perform worker selection
-                selected_workers = self._select_workers_from_clusters(self._families)
+                selected_workers = self.get_selected_workers()
                 if len(selected_workers) < self.config.worker_number:
                     # increment the worker_round if selected < total
                     worker_round = self.round_index + 1
@@ -275,7 +284,7 @@ class GraphAggregationServer(Server, PerformanceMixin, RoundSelectionMixin):
         log_info("this is after calling process_worker_data of the algo")
         # add the ID of this worker to the set of processed worker
         self.__worker_flag.add(worker_id)
-        if len(self.__worker_flag) == self.worker_number:
+        if len(self.__worker_flag) == self.selected_worker_number():
             log_info("here is after processing all worker data: len worker_flag %s , len worker_number %s ",
                       len(self.__worker_flag),
                       self.worker_number)
@@ -290,8 +299,7 @@ class GraphAggregationServer(Server, PerformanceMixin, RoundSelectionMixin):
             log_debug("here is before calling _send_result function")
             self._send_result(result)
             log_debug("here is after calling _send_result function")
-            log_info("************************************  adj matrix from server \n %s ",
-                     self.__algorithm.adjacency_sc_matrix)
+            #log_info("************************************  adj matrix from server \n %s ", self.__algorithm.adjacency_sc_matrix)
 
             log_info("************************************  adj matrix shape & type %s \n %s ",
                      self.__algorithm.adjacency_sc_matrix.shape, type(self.__algorithm.adjacency_sc_matrix))
@@ -302,7 +310,7 @@ class GraphAggregationServer(Server, PerformanceMixin, RoundSelectionMixin):
             log_debug(
                 "we have %s committed, and we need %s workers,skip",
                 len(self.__worker_flag),
-                self.worker_number,
+                self.selected_worker_number(),
             )
 
     def _update_graph_data(self, result) -> None:

@@ -28,8 +28,6 @@ class GraphAggregationWorker(GraphWorker, AggregationWorker, ClientMixin):  # Ag
         AggregationWorker.__init__(self, **kwargs)
         ClientMixin.__init__(self)
         self._communicate_node_state: bool = True
-        self._num_mi_trials: int = self.config.num_mi_trials
-        self._mi_evaluator_testdata_percent: float = self.config.mi_evaluator_testdata_percent
         self.__choose_model_by_validation: bool | None = None
         self.__model_cache: ModelCache = ModelCache()
         self.__worker_mi_evaluator: Inferencer
@@ -113,8 +111,25 @@ class GraphAggregationWorker(GraphWorker, AggregationWorker, ClientMixin):  # Ag
 
         log_warning("Total available local worker indices: %d", len(original_indices))
 
+        # Get batch size from trainer hyperparameters to ensure subset is divisible by batch size
+        batch_size = self.trainer.hyper_parameter.batch_size
+        log_warning("Batch size from trainer: %d", batch_size)
+
+        # Calculate desired subset size based on ratio
+        desired_subset_size = int(ratio * len(original_indices))
+        
+        # Adjust subset size to be divisible by batch_size (round down to avoid exceeding available data)
+        subset_size = (desired_subset_size // batch_size) * batch_size
+        
+        # Ensure we have at least one batch worth of data
+        if subset_size < batch_size:
+            subset_size = batch_size
+            log_warning("Adjusted subset size to minimum batch_size: %d", subset_size)
+        elif subset_size != desired_subset_size:
+            log_warning("Adjusted subset size from %d to %d to be divisible by batch_size %d", 
+                       desired_subset_size, subset_size, batch_size)
+
         # Randomly select a subset of indices from the local worker dataset
-        subset_size = int(ratio * len(original_indices))
         sampled_indices = np.random.choice(original_indices, size=subset_size, replace=False)
 
         #log_warning("Selected worker dataset subset indices: %s", sampled_indices)
@@ -138,26 +153,53 @@ class GraphAggregationWorker(GraphWorker, AggregationWorker, ClientMixin):  # Ag
         return results
 
     @staticmethod
-    def compare_model_parameters(model1: dict, model2: dict) -> bool:
+    def compare_model_parameters(model1: dict, model2: dict, rtol: float = 1e-5, atol: float = 1e-7) -> bool:
         """
-        Compare the parameters of two models of the same archi to check if they have the same values.
-
-        Args:
-            model1 (dict): Parameters of the first model (state_dict or parameter dictionary).
-            model2 (dict): Parameters of the second model (state_dict or parameter dictionary).
-
-        Returns:
-            bool: True if all parameters are identical, False otherwise.
+        Compare two state_dict-like parameter dicts. Logs the first mismatch with statistics.
+        Returns True only if all tensors are exactly equal (bitwise) and shapes match.
         """
         if model1.keys() != model2.keys():
-            log_info("Model parameter keys do not match.")
+            missing_in_2 = [k for k in model1.keys() if k not in model2]
+            missing_in_1 = [k for k in model2.keys() if k not in model1]
+            log_warning("Model parameter keys do not match. missing_in_2=%s missing_in_1=%s", missing_in_2, missing_in_1)
             return False
+
+        all_exact_equal = True
         for key in model1:
-            if not torch.equal(model1[key], model2[key]):
-                log_info("Parameter mismatch found in key: %s ", key)
+            t1 = model1[key]
+            t2 = model2[key]
+            if t1.shape != t2.shape:
+                log_warning("Shape mismatch at '%s': %s vs %s", key, t1.shape, t2.shape)
                 return False
-        log_info("All model parameters are identical.")
-        return True
+
+            # Check numerical closeness first
+            if not torch.allclose(t1, t2, rtol=rtol, atol=atol):
+                diff = (t1 - t2).detach()
+                max_abs = diff.abs().max().item()
+                mean_abs = diff.abs().mean().item()
+                l2 = torch.linalg.norm(diff).item()
+                log_warning("Value mismatch at '%s': max_abs=%g mean_abs=%g l2=%g rtol=%g atol=%g", key, max_abs, mean_abs, l2, rtol, atol)
+                # Additionally log small sample of differing entries
+                try:
+                    numel = diff.numel()
+                    if numel > 0:
+                        flat = diff.view(-1)
+                        topk = min(5, flat.numel())
+                        vals, idx = torch.topk(flat.abs(), k=topk)
+                        log_debug("Top-%d abs diffs for '%s': %s", topk, key, vals.tolist())
+                except Exception:
+                    pass
+                return False
+
+            # Exact equality check
+            if not torch.equal(t1, t2):
+                all_exact_equal = False
+
+        if all_exact_equal:
+            log_info("All model parameters are bitwise-identical.")
+        else:
+            log_info("All model parameters are numerically equal within tolerances (not bitwise-identical).")
+        return all_exact_equal
 
     def _compute_worker_mi(self) -> None:
         """
@@ -166,14 +208,15 @@ class GraphAggregationWorker(GraphWorker, AggregationWorker, ClientMixin):  # Ag
         log_info("Computing mutual information (MI)...")
 
         ############ Start MI estimation ##########
-        estimated_values = np.zeros(self._num_mi_trials)
+        num_trials = 1
+        estimated_values = np.zeros(num_trials)
         trainer_inferencer = self.trainer.get_inferencer(
             phase=MachineLearningPhase.Validation,
             inherent_device=True,
             deepcopy_model=True,  # Ensures we copy the model separately
         )
 
-        for i in range(self._num_mi_trials):
+        for i in range(num_trials):
             ##################### Step 1: Create Worker Inferencer ##########
 
             # ✅ Use shallow copy for inferencer to avoid re-copying dataset collection
@@ -183,9 +226,17 @@ class GraphAggregationWorker(GraphWorker, AggregationWorker, ClientMixin):  # Ag
             #self.__worker_mi_evaluator.running_model_evaluator.set_model(copy.deepcopy(
             #    trainer_inferencer.running_model_evaluator.model_util.model ))
 
-            # ✅ Move the model to CUDA for evaluation if available
-            if torch.cuda.is_available():
-                self.__worker_mi_evaluator.running_model_evaluator.model_util.to_device("cuda")
+            # ✅ Move the model to the same device as the trainer for evaluation
+            current_local_params = trainer_inferencer.running_model_evaluator.model_util.get_parameters()
+            self.__worker_mi_evaluator.running_model_evaluator.model_util.load_parameters(current_local_params)
+            # Use the trainer's assigned device instead of hardcoding "cuda"
+            trainer_device = trainer_inferencer.device
+            log_debug("Using trainer device for worker MI evaluator: %s", trainer_device)
+            try:
+                self.__worker_mi_evaluator.running_model_evaluator.model_util.to_device(trainer_device)
+            except Exception as e:
+                log_warning("Failed to move worker model to %s: %s, using CPU", trainer_device, e)
+                self.__worker_mi_evaluator.running_model_evaluator.model_util.to_device("cpu")
 
             assert self.__worker_mi_evaluator.dataset_collection.has_dataset(MachineLearningPhase.Validation)
             model1_params = self.__worker_mi_evaluator.running_model_evaluator.model_util.get_parameters()
@@ -193,15 +244,22 @@ class GraphAggregationWorker(GraphWorker, AggregationWorker, ClientMixin):  # Ag
             self.__global_mi_evaluator = copy.deepcopy(self.__worker_mi_evaluator)  # Full copy of worker inferencer
 
             # ✅ Load the global model from cache (ensuring only the model changes)
+            # ✅ Load the PRE-TRAINING global model snapshot from the shared server cache for this round
+            # The server saves the model it is about to send at save_dir/aggregated_model/round_{round}.pk
             global_model_state_dict = self._get_aggregated_model_from_path(self.round_index)
             self.__global_mi_evaluator.running_model_evaluator.model_util.load_parameters(global_model_state_dict)
-            if torch.cuda.is_available():
-                self.__global_mi_evaluator.running_model_evaluator.model_util.to_device("cuda")
+            # Use the same device as the worker MI evaluator for consistency
+            log_warning("Using same device for global MI evaluator: %s", trainer_device)
+            try:
+                self.__global_mi_evaluator.running_model_evaluator.model_util.to_device(trainer_device)
+            except Exception as e:
+                log_warning("Failed to move global model to %s: %s, using CPU", trainer_device, e)
+                self.__global_mi_evaluator.running_model_evaluator.model_util.to_device("cpu")
 
             assert self.__global_mi_evaluator.dataset_collection.has_dataset(MachineLearningPhase.Validation)
 
             ##################### Step 3: Extract Subset for Testing ##########
-            original_indices, sampled_indices = self._get_test_data_subset(self._mi_evaluator_testdata_percent)
+            original_indices, sampled_indices = self._get_test_data_subset(0.3)
 
             # ✅ Assign subset to both inferencers
             self.__worker_mi_evaluator.dataset_collection.set_subset(MachineLearningPhase.Validation,
@@ -279,19 +337,46 @@ class GraphAggregationWorker(GraphWorker, AggregationWorker, ClientMixin):  # Ag
         assert possible_values is not None
         possible_values = np.array(list(possible_values))
 
+        # Flatten arrays to 1D if they're 2D
+        if X.ndim > 1:
+            X = X.flatten()
+        if Y.ndim > 1:
+            Y = Y.flatten()
+
+        # Debug logging
+        log_warning("X (worker) unique values: %s, shape: %s", np.unique(X), X.shape)
+        log_warning("Y (global) unique values: %s, shape: %s", np.unique(Y), Y.shape)
+        log_warning("Possible values from dataset: %s", possible_values)
+
         n = possible_values.shape[0]
         P = np.zeros((n, n))
         for i, x in enumerate(possible_values):
             for j, y in enumerate(possible_values):
                 P[i, j] = np.sum((X == x) * (Y == y))
-        P = P / len(X)
+        # P = P / len(X)
+        # Add small epsilon to avoid log(0)
+        P = P + 1e-10
+        P = P / (len(X) + n * n * 1e-10)  # Normalize properly
+        
         P_x = np.sum(P, axis=1)
         P_y = np.sum(P, axis=0)
+        
+        # Use base-2 logarithm for MI calculation (standard in information theory)
         MI = 0
         for i, x in enumerate(possible_values):
             for j, y in enumerate(possible_values):
-                if P[i, j] > 0:
-                    MI += P[i, j] * np.log(P[i, j] / (P_x[i] * P_y[j]))
+                if P[i, j] > 1e-10:  # Only consider non-zero probabilities
+                    ratio = P[i, j] / (P_x[i] * P_y[j])
+                    if ratio > 0:
+                        MI += P[i, j] * np.log2(ratio)  # Use log2 instead of natural log
+
+        # MI should never be negative - if it is, there's an error in calculation
+        if MI < 0:
+            log_warning("Warning: MI is negative (%f), this indicates an error in calculation", MI)
+            log_warning("P matrix:\n%s", P)
+            log_warning("P_x: %s", P_x)
+            log_warning("P_y: %s", P_y)
+            MI = max(0, MI)  # Clamp to 0
 
         return MI
 
@@ -447,13 +532,13 @@ class GraphAggregationWorker(GraphWorker, AggregationWorker, ClientMixin):  # Ag
         new_family = self._load_family_assignment_from_server(other_data)
         log_info("attributed family: %s, for worker: %s", new_family, self.worker_id)
         # change it in the client state
-        if new_family != 0 & new_family != self.state.family:
+        if new_family != 0 & new_family != self._get_worker_family(self.worker_id):
             log_warning("change to be made for worker %s family")
             # set the new family
-            self.state.set_family(new_family)
+            self._set_worker_family(self.worker_id, new_family)
             log_warning("new set family for worker %s is: %s",
                      self.worker_id,
-                     self.state.family)
+                     self.get_worker_family(self.worker_id))
         # load params into the trainer
         load_parameters(
             trainer=self.trainer,

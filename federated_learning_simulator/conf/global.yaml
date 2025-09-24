@@ -1,10 +1,10 @@
 ---
 cache_transforms: cpu
 log_level: INFO
-save_performance_metric: false
-use_amp: false
+save_performance_metric: true
 use_performance_metric: true
-use_slow_performance_metrics: false
-log_performance_metric: true
-exp_name: niid_0.1
+log_performance_metric: true # was false
+use_amp: false
+use_slow_performance_metrics: false # was false
+exp_name: niid_0.1 # was not there, "c10" in specific config files
 ...
