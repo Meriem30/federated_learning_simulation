@@ -110,6 +110,7 @@ class AggregationServer(Server, PerformanceMixin, RoundSelectionMixin):
             case ParameterMessageBase():
                 # if ParameterMessage or any subclass, perform worker selection
                 selected_workers = self.select_workers()
+                log_info("the selected workers: {} are getting the actual server model ".format(selected_workers))
                 if len(selected_workers) < self.config.worker_number:
                     # increment the worker_round if selected < total
                     worker_round = self.round_index + 1
@@ -128,6 +129,7 @@ class AggregationServer(Server, PerformanceMixin, RoundSelectionMixin):
                 if unselected_workers:
                     self._endpoint.broadcast(data=None, worker_ids=unselected_workers)
             case _:
+                log_info("all workers (%s) are getting the actual server model ".format(self.worker_number))
                 # if other result type, broadcast to all workers
                 self._endpoint.broadcast(data=result)
         # post-send hook
@@ -169,7 +171,9 @@ class AggregationServer(Server, PerformanceMixin, RoundSelectionMixin):
         self.__algorithm.process_worker_data(worker_id=worker_id, worker_data=data)
         # add the ID of this worker to the set of processed worker
         self.__worker_flag.add(worker_id)
-        if len(self.__worker_flag) == self.worker_number:
+        selected_workers = self.select_workers()
+        #if len(self.__worker_flag) == self.worker_number:
+        if len(selected_workers) == len(selected_workers):
             # aggregate the data from all worker once the data from them is processed
             result = self._aggregate_worker_data()
             # send the aggregated model to server

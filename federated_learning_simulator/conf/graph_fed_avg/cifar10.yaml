@@ -3,7 +3,7 @@ dataset_name: CIFAR10
 model_name: densenet40
 distributed_algorithm: graph_fed_avg
 optimizer_name: SGD
-worker_number: 25
+worker_number: 35
 batch_size: 32
 round: 150
 learning_rate_scheduler_name: CosineAnnealingLR

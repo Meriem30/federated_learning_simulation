@@ -15,7 +15,9 @@ import method  # noqa: F401
 
 global_config: DistributedTrainingConfig = DistributedTrainingConfig()
 
-@hydra.main(config_path="conf", version_base=None)
+@hydra.main(config_path="./conf", config_name="graph_fed_avg/cifar10.yaml", version_base=None)
+
+
 def load_config(conf) -> None:
     global global_config
     global_config = __load_config(

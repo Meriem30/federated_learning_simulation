@@ -86,7 +86,7 @@ class Inferencer(Executor):
                 )
                 self.remove_named_hook(name=hook_name)
             assert len(sample_loss) == self.dataset_size
-            return sample_loss, sample_target
+            return sample_loss
 
     def __collect_sample_loss(
         self, sample_loss: dict, result, sample_indices, **kwargs
@@ -129,7 +129,7 @@ class Inferencer(Executor):
         targets = sample_results.get("targets", [])
 
 
-        # Ensure all outputs are at least 2D (e.g., [1, num_classes])
+        # Normalize only scalars to 1D; keep 1D/2D shapes to allow cat along dim 0
         normalized_outputs = [o.unsqueeze(0) if o.dim() == 1 else o for o in outputs]
         normalized_targets = [t.unsqueeze(0) if t.dim() == 0 else t for t in targets]
 
@@ -211,10 +211,10 @@ class Inferencer(Executor):
             sample_results["targets"] = []
 
         # Append results for this batch
-        sample_results["model_output"].append(predictions.clone().detach().to(self.device))
+        sample_results["model_output"].append(predictions.clone().detach().to("cuda"))
 
         # Store corresponding targets
-        sample_results["targets"].append(result["targets"].clone().detach().to(self.device))
+        sample_results["targets"].append(result["targets"].clone().detach().to("cuda"))
 
         #log_info("Accumulated model_output length: %s ", len(sample_results["model_output"]))
         #log_info("Accumulated targets length: %s ", len(sample_results["targets"]))

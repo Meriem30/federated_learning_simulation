@@ -147,7 +147,7 @@ class GraphFedAVGAlgorithm(AggregationAlgorithm):
 
         # initialize a zero matrix of shape (num_clients, num_properties)
         client_states = np.zeros((num_clients, num_properties))
-        log_info("client_states before uploading client info: \n %s", client_states)
+        #log_info("client_states before uploading client info: \n %s", client_states)
 
         # collect data from participating clients
         # extract the participating_clients_ids for that round
@@ -182,7 +182,7 @@ class GraphFedAVGAlgorithm(AggregationAlgorithm):
             #    client_states[worker_id, 1] = float(prev_state._energy_consumption)
             #    client_states[worker_id, 2] = float(prev_state._memory_occupation)
 
-        log_info("Here is client states matrix \n %s", client_states)
+        #log_info("Here is client states matrix \n %s", client_states)
         return client_states
 
     @classmethod
@@ -246,11 +246,28 @@ class GraphFedAVGAlgorithm(AggregationAlgorithm):
             if hasattr(self.config, attr):
                 value = getattr(self.config, attr)
                 try:
-                    enum_value = enum_type(value.lower())
+                    if isinstance(value, str):
+                        # normalize case, try matching by value first
+                        enum_value = None
+                        try:
+                            enum_value = enum_type(value.lower())  # match enum value (e.g. 'gaussian')
+                        except ValueError:
+                            try:
+                                enum_value = enum_type[value.capitalize()]  # match enum name (e.g. 'Gaussian')
+                            except KeyError:
+                                pass
+                        if enum_value is None:
+                            raise ValueError(f"Unknown {attr}: {value}")
+                    elif isinstance(value, enum_type):
+                        enum_value = value  # already correct type
+                    else:
+                        raise ValueError(f"Invalid type for {attr}: {value}")
+
                     setattr(self.config, attr, enum_value)
                     self._enum_converted = True
-                except KeyError:
-                    raise ValueError(f"Unknown {attr}: {value}")
+
+                except Exception as e:
+                    raise ValueError(f"Failed to convert {attr}={value} → {enum_type}: {e}")
 
 
     # ADDED to handle spectral clustering
@@ -287,8 +304,12 @@ class GraphFedAVGAlgorithm(AggregationAlgorithm):
         # The adjacency matrix can be very large. Log its shape and sparsity instead of the full matrix.
         if self._adjacency_matrix is not None:
             log_info(
-                f"Adjacency matrix returned from clustering: Shape={self._adjacency_matrix.shape}, NNZ={self._adjacency_matrix.nnz}")
+                f"Adjacency matrix returned from clustering: Shape={self._adjacency_matrix.shape}") # NNZ={self._adjacency_matrix.nnz}
 
+        #log_warning("this is the centroids returned from the clustering : %s", centroids)
+        #log_info(" this is the adjacency matrix returned from the clustering :\n %s", self._adjacency_matrix)
+        # Process the result
+        #self._process_clustering_results(labels)
         return labels, self._adjacency_matrix
 
     @classmethod

@@ -34,18 +34,18 @@ class SpectralClustering:
         self.config = config
         self.adjacency_matrix = None
 
+
     def fit(self, data: np.ndarray) -> np.ndarray:
         """
         Executes the full spectral clustering pipeline on the input data.
 
         Args:
-            data: The input data matrix where rows are data points.
+            data: The input data matrix, where rows are clients
 
         Returns:
-            An array of cluster labels for each data point.
+            An array of cluster labels for each client.
         """
         # Step 1: Create similarity matrix
-        # This function is not provided, so it's assumed to exist
         similarity_matrix = compute_similarity_matrix(data, self.config['similarity_function'])
 
         # Step 2: Construct the graph
@@ -53,15 +53,15 @@ class SpectralClustering:
         graph_params = {
             'num_neighbors': self.config.get('num_neighbors', 5),
             'threshold': self.config.get('threshold', 0.5),
+
         }
         graph_constructor = GraphConstructor(self.config['graph_type'], **graph_params)
+        # Call the graph construction function the on created instance
         self.adjacency_matrix = graph_constructor.construct_graph(similarity_matrix)
-
         # Log concise information about the sparse graph
         if isinstance(self.adjacency_matrix, csr_matrix):
             log_info(f"Graph constructed. Shape: {self.adjacency_matrix.shape}, "
                      f"NNZ: {self.adjacency_matrix.nnz}")
-            log_info("************** This is the adjacency matrix ***************** \n %s", self.adjacency_matrix)
         else:
             log_info(f"Graph constructed. Shape: {self.adjacency_matrix.shape}")
 
@@ -69,9 +69,8 @@ class SpectralClustering:
         log_info(f"Laplacian computation started with type: {self.config['laplacian_type'].name}")
         laplacian = Laplacian(self.adjacency_matrix, self.config['laplacian_type'])
 
-        # Step 4: Perform spectral decomposition
+        # Step 4: compute the Laplacian & get the eigenvectors (use the smallest k eigenvectors)
         # Use the `spectral_decomposition` method which returns only eigenvectors.
-        # It's more direct for the clustering task.
         log_info("Performing spectral decomposition to get top eigenvectors.")
         top_k_eigenvectors = laplacian.spectral_decomposition(self.config['num_clusters'])
         log_info(f"Obtained eigenvectors matrix with shape: {top_k_eigenvectors.shape}")
