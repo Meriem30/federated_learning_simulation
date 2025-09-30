@@ -172,8 +172,7 @@ class AggregationServer(Server, PerformanceMixin, RoundSelectionMixin):
         # add the ID of this worker to the set of processed worker
         self.__worker_flag.add(worker_id)
         selected_workers = self.select_workers()
-        #if len(self.__worker_flag) == self.worker_number:
-        if len(selected_workers) == len(selected_workers):
+        if len(self.__worker_flag) == self.worker_number:
             # aggregate the data from all worker once the data from them is processed
             result = self._aggregate_worker_data()
             # send the aggregated model to server

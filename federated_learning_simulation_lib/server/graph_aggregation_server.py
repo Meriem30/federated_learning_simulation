@@ -62,7 +62,7 @@ class GraphAggregationServer(Server, PerformanceMixin, RoundSelectionMixin):
     def round_index(self) -> int:
         return self._round_index
 
-
+    @property
     def selected_worker_number(self) -> int:
         return len(self.get_selected_workers())
 
@@ -284,7 +284,7 @@ class GraphAggregationServer(Server, PerformanceMixin, RoundSelectionMixin):
         log_info("this is after calling process_worker_data of the algo")
         # add the ID of this worker to the set of processed worker
         self.__worker_flag.add(worker_id)
-        if len(self.__worker_flag) == self.selected_worker_number():
+        if len(self.__worker_flag) == self.selected_worker_number:
             log_info("here is after processing all worker data: len worker_flag %s , len worker_number %s ",
                       len(self.__worker_flag),
                       self.worker_number)
@@ -310,7 +310,7 @@ class GraphAggregationServer(Server, PerformanceMixin, RoundSelectionMixin):
             log_debug(
                 "we have %s committed, and we need %s workers,skip",
                 len(self.__worker_flag),
-                self.selected_worker_number(),
+                self.selected_worker_number,
             )
 
     def _update_graph_data(self, result) -> None:
