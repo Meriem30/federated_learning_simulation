@@ -209,7 +209,7 @@ class GraphFedAVGAlgorithm(AggregationAlgorithm):
         # log_debug("passed arg type for compute_new_families", type(all_worker_data)) -> dict
         for worker_id, worker_data in all_worker_data.items():
             family_dict[worker_id] = int(families[worker_id])
-        log_info("this is the family dict after updating the families %s", family_dict)
+        #log_info("this is the family dict after updating the families %s", family_dict)
         return family_dict
 
     @classmethod
@@ -262,10 +262,8 @@ class GraphFedAVGAlgorithm(AggregationAlgorithm):
                         enum_value = value  # already correct type
                     else:
                         raise ValueError(f"Invalid type for {attr}: {value}")
-
                     setattr(self.config, attr, enum_value)
                     self._enum_converted = True
-
                 except Exception as e:
                     raise ValueError(f"Failed to convert {attr}={value} → {enum_type}: {e}")
 
