@@ -1,6 +1,7 @@
 import copy
 import multiprocessing
 import os
+import time
 # to save memory in large-scale training
 import uuid
 
@@ -169,6 +170,7 @@ def train(
     # shutdown the process pool
     process_pool.shutdown(wait=True)
     log_info("training took %s seconds", timer.elapsed_milliseconds() / 1000)
+    time.sleep(20)
     return None
 
 
