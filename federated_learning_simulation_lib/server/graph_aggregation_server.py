@@ -1,5 +1,7 @@
 import os
 import pickle
+import copy
+import time
 from typing import Any
 from datetime import datetime
 
@@ -11,6 +13,7 @@ import matplotlib.pyplot as plt
 from matplotlib.colors import ListedColormap
 
 from ..algorithm.aggregation_algorithm import AggregationAlgorithm
+from ..executor import ExecutorContext
 from ..message import (DeltaParameterMessage, Message, MultipleWorkerMessage,
                        ParameterMessage, ParameterMessageBase)
 from ..util.model_cache import ModelCache
@@ -18,6 +21,7 @@ from .performance_mixin import PerformanceMixin
 from .round_selection_mixin import RoundSelectionMixin
 from .server import Server
 from federated_learning_simulation_lib.graph_worker.client_state import ClientState
+from ..algorithm.graph_fed_avg import GraphFedAVGAlgorithm
 
 
 class GraphAggregationServer(Server, PerformanceMixin, RoundSelectionMixin):
@@ -162,6 +166,37 @@ class GraphAggregationServer(Server, PerformanceMixin, RoundSelectionMixin):
             self._network.add_node(worker_id, state=self._graph_client_states[worker_id])
         log_info("Network initialized with nodes for round: %s ", self.round_index)
 
+    def start(self) -> None:
+        """
+            start the worker training
+            wait for the actually selected workers each round.
+            end : stop worker training and server
+
+        """
+        ExecutorContext.set_name(self.name)
+        with open(os.path.join(self.save_dir, "config.pkl"), "wb") as f:
+            pickle.dump(self.config, f)
+        self._before_start()
+        worker_set: set = set()
+        while not self._stopped():
+            if not worker_set:
+                # Use the selected workers for this round (convert to set in case of range)
+                worker_set = set(self.get_selected_workers())
+            assert self._endpoint.worker_num == self.config.worker_number
+            for worker_id in copy.copy(worker_set):
+                has_data: bool = self._endpoint.has_data(worker_id)
+                if has_data:
+                    log_info("get result from worker_id %s", worker_id)
+                    self._process_worker_data(worker_id, self._endpoint.get(worker_id=worker_id))
+                    worker_set.remove(worker_id)
+            if worker_set:
+                log_info("wait for other %s workers ", len(worker_set))
+            if worker_set and not self._stopped():
+                time.sleep(5)
+        self._endpoint.close()
+        self._server_exit()
+        log_info("end server")
+
     def _update_network(self):
         """
         Update the graph's nodes, edges, and clusters based on the latest client states and similarity matrix.
@@ -305,6 +340,7 @@ class GraphAggregationServer(Server, PerformanceMixin, RoundSelectionMixin):
                      self.__algorithm.adjacency_sc_matrix.shape, type(self.__algorithm.adjacency_sc_matrix))
             # clear the set of worker flag
             self.__worker_flag.clear()
+
         else:
             # log the status
             log_debug(
