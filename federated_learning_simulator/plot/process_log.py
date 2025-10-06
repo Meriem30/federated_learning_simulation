@@ -23,6 +23,7 @@ def parse_log_file(filepath):
     Extract accuracy, loss, and training time from a log file.
     """
     acc, loss, time_spent = None, None, None
+    last_round_performance, train_time = None, None
 
     with open(filepath, "rb") as f:
         f.seek(0, os.SEEK_END)
@@ -39,6 +40,7 @@ def parse_log_file(filepath):
             for line in reversed(lines):
                 line = line.decode("utf-8", errors="ignore")
                 if "round: 100" in line and (acc is None or loss is None):
+                    print("found line round: 100")
                     match = ROUND100_PATTERN.search(line)
                     if match:
                         loss = float(match.group(1))
@@ -51,6 +53,8 @@ def parse_log_file(filepath):
 
                 if acc is not None and loss is not None and time_spent is not None:
                     break
+        if last_round_performance is None or train_time is None:
+            raise ValueError(f"Could not extract metrics from {filepath}")
     return last_round_performance, train_time
 
 def process_logs(root=LOG_ROOT, exp_list=CONF_EXPERIMENTS):
@@ -87,7 +91,7 @@ def process_logs(root=LOG_ROOT, exp_list=CONF_EXPERIMENTS):
                     log_file = os.path.join(client_path, run_id)
                     if os.path.isfile(log_file):
                         (loss, acc), time_spent = parse_log_file(log_file)
-                        record = [num_clients, acc, loss, time_spent]
+                        record = [num_clients, acc, loss, time_spent, exp]
                         print(f"extracted record : {record}")
                         results.append(record)
 
@@ -95,20 +99,17 @@ def process_logs(root=LOG_ROOT, exp_list=CONF_EXPERIMENTS):
             results.sort(key=lambda x: x[0])
 
             if results:
-                df = pd.DataFrame(results)
+                # create dataframe with explicit columns
+                df = pd.DataFrame(results, columns=["num_clients", "accuracy", "loss", "train_time", "exp"])
                 algo_perf_data[algo] = df
-                print(algo_perf_data)
-                # df.to_csv(os.path.join(OUTPUT_DIR, f"{algo}_results.csv"), index=False)
+
+                # build descriptive filename: include experiment + algo
+                out_file = os.path.join(OUTPUT_DIR,f"{exp}", f"{exp}_{algo}_results.csv")
+
+                # save once, with descriptive header
+                df.to_csv(out_file, index=False)
+                print(f"[OK] Saved results for algo={algo}, exp={exp} → {out_file}")
             else:
-                raise ValueError(F"No results extracted for {algo}")
-
-            # save CSV per algo per exp
-            out_file = os.path.join(OUTPUT_DIR, f"{exp}_", f"{exp}_{algo}_results.csv")
-            with open(out_file, "w", newline="") as f:
-                writer = csv.writer(f)
-                writer.writerow(["num_clients", "accuracy", "loss", "train_time"])
-                writer.writerows(results)
-
-            print(f"[OK] Saved results for {algo} in {exp} → {out_file}")
+                raise ValueError(f"No results extracted for {algo}")
 
     return algo_perf_data

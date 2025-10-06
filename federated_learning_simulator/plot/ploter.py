@@ -50,7 +50,7 @@ def plot_results(data):
         "time_per_round_s": "Time/Iter",
         "time_minmax": "Time",
     }
-    exp = ""
+    exp = "iid"
     for metric in metrics:
         plt.figure(figsize=(8, 6))
         if data != {}:
@@ -65,7 +65,6 @@ def plot_results(data):
                     continue
                 df_sorted = df.sort_values("num_clients")
                 # Per-round
-
                 plt.plot(df_sorted["num_clients"], df_sorted[metric],
                          marker="o", label=algo_name)
         else:
