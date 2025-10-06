@@ -170,7 +170,7 @@ def train(
     # shutdown the process pool
     process_pool.shutdown(wait=True)
     log_info("training took %s seconds", timer.elapsed_milliseconds() / 1000)
-    time.sleep(20)
+    #time.sleep(20)
     return None
 
 

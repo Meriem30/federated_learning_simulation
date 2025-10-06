@@ -165,14 +165,13 @@ class GraphAggregationServer(Server, PerformanceMixin, RoundSelectionMixin):
         for worker_id in range(self.config.worker_number):
             self._network.add_node(worker_id, state=self._graph_client_states[worker_id])
         log_info("Network initialized with nodes for round: %s ", self.round_index)
-
-    def start(self) -> None:
-        """
+    """ def start(self) -> None:
+        
             start the worker training
             wait for the actually selected workers each round.
             end : stop worker training and server
 
-        """
+        
         ExecutorContext.set_name(self.name)
         with open(os.path.join(self.save_dir, "config.pkl"), "wb") as f:
             pickle.dump(self.config, f)
@@ -196,7 +195,7 @@ class GraphAggregationServer(Server, PerformanceMixin, RoundSelectionMixin):
         self._endpoint.close()
         self._server_exit()
         log_info("end server")
-
+"""
     def _update_network(self):
         """
         Update the graph's nodes, edges, and clusters based on the latest client states and similarity matrix.
