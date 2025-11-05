@@ -119,15 +119,128 @@ federated_learning_simulation/
 
 ### Component Overview
 
-| Component                                   | Purpose                                                               | Key Features                                                                          |
-|---------------------------------------------|-----------------------------------------------------------------------|---------------------------------------------------------------------------------------|
-| [**`federated_learning_simulation_lib`**](https://github.com/Meriem30/federated_learning_simulation/tree/main/federated_learning_simulation_lib) | Core FL library with graph-based client selection                     | Worker, GraphWorker, Sampler, Server; Aggregation, Selection and Clustering Algorithms |
-| [**`federated_learning_simulator`**](https://github.com/Meriem30/federated_learning_simulation/tree/main/federated_learning_simulator)      | Orchestration engine for running FL experiments (Project Entry Point) | Experiment Configuration, Client and Server Endpoints, Aggregation Method Assignment  | 
-| [**`torch_vision`**](https://github.com/Meriem30/federated_learning_simulation/tree/main/torch_vision)                      | Computer Vision FL Implementations                                    | Dataset Constructors, Transformer Pipelines, Vision Model Constructors                | 
-| [**`torch_medical`**](https://github.com/Meriem30/federated_learning_simulation/tree/main/torch_medical)                     | Medical Imaging Specialization                                        | Medical Dataset Registration, Domain-Specific Transformers, Models                    | 
-| [**`torch_kit`**](https://github.com/Meriem30/federated_learning_simulation/tree/main/torch_kit)                         | Advanced PyTorch Utility Toolkit (Extensions)                         | Design Abstractions (Training/Optimizers/Metrics), Device Management, Custom layers   | 
-| [**`other_libs`**](https://github.com/Meriem30/federated_learning_simulation/tree/main/other_libs)                        | Helper Utilities to Simplify Python Tasks                             | Data loaders, Log Formatting, Communication Abstractions                              | 
-
-
+| Component                                                                                                                                         | Purpose                                                               | Key Features                                                                          |
+|---------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------|---------------------------------------------------------------------------------------|
+| [**`federated_learning_simulation_lib`**](https://github.com/Meriem30/federated_learning_simulation/tree/main/federated_learning_simulation_lib)  | Core FL library with graph-based client selection                     | Worker, GraphWorker, Sampler, Server; Aggregation, Selection and Clustering Algorithms |
+| [**`federated_learning_simulator`**](https://github.com/Meriem30/federated_learning_simulation/tree/main/federated_learning_simulator)            | Orchestration engine for running FL experiments (Project Entry Point) | Experiment Configuration, Client and Server Endpoints, Aggregation Method Assignment  | 
+| [**`torch_vision`**](https://github.com/Meriem30/federated_learning_simulation/tree/main/torch_vision)                                            | Computer Vision FL Implementations                                    | Dataset Constructors, Transformer Pipelines, Vision Model Constructors                | 
+| [**`torch_medical`**](https://github.com/Meriem30/federated_learning_simulation/tree/main/torch_medical)                                          | Medical Imaging Specialization                                        | Medical Dataset Registration, Domain-Specific Transformers, Models                    | 
+| [**`torch_kit`**](https://github.com/Meriem30/federated_learning_simulation/tree/main/torch_kit)                                                  | Advanced PyTorch Utility Toolkit (Extensions)                         | Design Abstractions (Training/Optimizers/Metrics), Device Management, Custom layers   | 
+| [**`other_libs`**](https://github.com/Meriem30/federated_learning_simulation/tree/main/other_libs)                                                | Helper Utilities to Simplify Python Tasks                             | Data loaders, Log Formatting, Communication Abstractions                              | 
 
 ---
+
+## 📦 Installation
+
+### Prerequisites
+
+- **Python 3.11+** (tested with 3.11.5)
+- **CUDA 12.1+** (for GPU support, recommended) or CPU-only mode
+- **16GB+ RAM** recommended for large-scale simulations
+- **Operating Systems**: Windows, Linux, macOS (all Unix distributions supported)
+
+> **Note**: A pre-configured `environment.yaml` file is provided at the root of the repository with pinned package versions and minimum versions specified to prevent dependency conflicts. 
+> This file is configured for **CUDA-enabled systems** and is the **recommended installation method**. Directives for CPU-only installation are provided below.
+---
+
+### Recommended Installation 
+
+**For CUDA-enabled systems using conda env file:**
+
+#### Step 1: Clone the Repository
+
+```bash
+# Clone the repository
+git clone https://github.com/Meriem30/federated_learning_simulation.git
+cd federated_learning_simulation
+```
+
+#### Step 2: Create Virtual Environment from `environment.yaml`
+
+```bash
+# Create environment (includes CUDA support)
+conda env create -f environment.yaml
+
+# Activate environment
+conda activate FL_projects
+```
+
+#### Step 3: Verify Installation 
+
+```bash
+# Check CUDA availability and core installations
+
+python -c "import torch, torchvision, torchmetrics; \
+print(f'✅ PyTorch version: {torch.__version__}'); \
+print(f'✅ TorchVision version: {torchvision.__version__}'); \
+print(f'✅ TorchMetrics version: {torchmetrics.__version__}'); \
+print(f'✅ CUDA available: {torch.cuda.is_available()}'); \
+print(f'🚀 CUDA version: {torch.version.cuda if torch.cuda.is_available() else \"N/A\"}'); \
+print(f'🚀 CUDA device count: {torch.cuda.device_count() if torch.cuda.is_available() else 0}'); \
+print(f'🚀 CUDA device name: {torch.cuda.get_device_name(0) if torch.cuda.is_available() else \"CPU mode only\"}')"
+```
+
+
+**Expected output:**
+
+If you have GPU-enabled system, and depending on your setup, you would see something like the messages below:
+
+```bash
+✅ PyTorch version: 2.3.1
+✅ TorchVision version: 0.18.1
+✅ TorchMetrics version: 1.3.0
+✅ CUDA available: True
+🚀 CUDA version: 12.1
+🚀 CUDA device count: 1
+🚀 CUDA device name: NVIDIA GeForce RTX 3080 # (your nvidia device, otherwise you'll get: CPU mode only)
+```
+
+---
+
+**For CPU-only systems:**
+
+If you want to run on CPU without CUDA support, modify the `environment.yaml` file before creating the environment:
+
+#### Step 2.1 Change the Channels Section
+replace the channels in `environment.yaml` with:
+
+```yaml
+   channels:
+     - anaconda
+     - conda-forge
+     - defaults
+```
+
+#### Step 2.2 Remove CUDA-related Dependencies
+replace `pytorch-cuda=12.1` with the following
+
+```yaml
+dependencies:
+  - ...
+  - pytorch=2.3.1 #or >=2.1
+```
+
+#### Step 2.3 Create the Environment:
+```bash
+   conda env create -f environment.yaml
+   conda activate FL_projects
+```
+
+Now you can do the sanity checks from *[step 3](#step-3:-verify-installation)*
+
+---
+
+#### Step 4 : Running Pre-configured Experiment
+If you have made it this far, the next command should run successfully as a quick running experiment check
+
+
+```bash
+# Run a quick sanity-check experiment
+python federated_learning_simulator/simulator.py \
+    --config-name fed_avg/cifar10.yaml \
+    ++fed_avg.round=1 \
+    ++fed_avg.epoch=1 \
+    ++fed_avg.worker_number=2 \
+    ++fed_avg.algorithm_kwargs.node_sample_percent=1 \
+    ++fed_avg.debug=True
+ ```
