@@ -1,5 +1,9 @@
 # Federated Learning Simulation Framework
 ### Graph-Based Client Selection with Information Theory and Spectral Clustering
+[![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
+[![PyTorch](https://img.shields.io/badge/PyTorch-2.0+-ee4c2c.svg)](https://pytorch.org/)
+[![License](https://img.shields.io/badge/License-BSD-green.svg)](LICENSE)
+[![Paper Status](https://img.shields.io/badge/IEEE%20IoT%20Journal-Under%20Review-yellow.svg)](https://ieee-iotj.org/)
 
 > **A comprehensive simulation framework for federated learning with advanced client selection strategy based on graph modeling of FL system, information theory, and spectral clustering techniques.**
 
