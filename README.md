@@ -43,11 +43,11 @@ Our framework introduces a novel **graph-based client selection mechanism** that
 
 
 
-[//]: # ( - **🔗 Graph-Based FL Modeling**: Represents FL systems as graphs where nodes are clients and edges capture similarity/interaction patterns
-- **📊 Information Theory Integration**: Uses entropy, mutual information, and divergence measures for client selection
-- **🎯 Spectral Clustering**: Applies spectral methods to identify coherent client clusters for efficient federated rounds
-- **🔬 Modular Research Design**: Clean separation between simulation engine, data handling, and model architectures
-- **📈 Comprehensive Evaluation**: Built-in metrics for convergence, communication efficiency, and fairness analysis)
+[//]: # ( - **🔗 Graph-Based FL Modeling**: Represents FL systems as graphs where nodes are clients and edges capture similarity/interaction patterns)
+[//]: # (- **📊 Information Theory Integration**: Uses entropy, mutual information, and divergence measures for client selection)
+[//]: # (- **🎯 Spectral Clustering**: Applies spectral methods to identify coherent client clusters for efficient federated rounds)
+[//]: # (- **🔬 Modular Research Design**: Clean separation between simulation engine, data handling, and model architectures)
+[//]: # (- **📈 Comprehensive Evaluation**: Built-in metrics for convergence, communication efficiency, and fairness analysis)
 
 
 
