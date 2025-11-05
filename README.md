@@ -36,9 +36,11 @@ This repository implements a **state-of-the-art federated learning simulation fr
 Our framework introduces a novel **graph-based client selection mechanism** that combines **information-theoretic similarity measures** with **spectral clustering** to optimize client participation, reduce communication overhead, and improve model convergence.
 
 
+
 ---
 
 [//]: # ( ### What Makes This Framework Original?)
+
 
 
 [//]: # ( - **🔗 Graph-Based FL Modeling**: Represents FL systems as graphs where nodes are clients and edges capture similarity/interaction patterns
@@ -46,6 +48,7 @@ Our framework introduces a novel **graph-based client selection mechanism** that
 - **🎯 Spectral Clustering**: Applies spectral methods to identify coherent client clusters for efficient federated rounds
 - **🔬 Modular Research Design**: Clean separation between simulation engine, data handling, and model architectures
 - **📈 Comprehensive Evaluation**: Built-in metrics for convergence, communication efficiency, and fairness analysis)
+
 
 
 ---
