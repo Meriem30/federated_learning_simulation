@@ -14,9 +14,9 @@
 - [X] [Overview](#-overview) 
 - [X] [Key Features](#-key-features)
 - [X] [Research Context](#-research-context)
-- [X] [Architecture & Project Structure](#-architecture--project-structure)
+- [X] [Architecture & Project Structure](#-architecture-and-project-structure)
 - [X] [Installation](#-installation) 
-- [X] [Configuration](#configuration)
+- [X] [Configuration](#-configuration)
     ### TODOs
 - [ ] [Quick Start](#quick-start)
 - [ ] [Detailed Component Guide](#detailed-component-guide)
@@ -102,7 +102,7 @@ This framework supports the research presented in our paper submitted to **IEEE 
 ---
 
 
-## 🏗️ Architecture & Project Structure
+## 🏗️ Architecture and Project Structure
 
 The framework is organized into **six modular sub-projects**, each with a specific role in the FL simulation pipeline:
 
@@ -599,3 +599,22 @@ laplacian_type: RandomWalk
 ```
 
 ---
+
+
+## Quick Start: 
+
+### Running with YAML Configuration
+
+```bash
+# Use default configuration
+python federated_learning_simulator/simulator.py \
+    ---config-name fed_avg/cifar10.yaml
+
+
+# Override specific parameters via command line
+python federated_learning_simulator/run_experiment.py \
+    ---config-name graph_fed_avg/cifar10.yaml \
+    ++graph_fed_avg.worker_number=100 \
+    ++graph_fed_avg.algorithm_kwargs.node_sample_percent=0.5 \
+    ++graph_fed_avg.family_number=5
+```
