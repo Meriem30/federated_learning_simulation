@@ -17,8 +17,8 @@
 - [X] [Architecture & Project Structure](#-architecture-and-project-structure)
 - [X] [Installation](#-installation) 
 - [X] [Configuration](#-configuration)
+- [X] [Quick Start](#quick-start)
     ### TODOs
-- [ ] [Quick Start](#quick-start)
 - [ ] [Detailed Component Guide](#detailed-component-guide)
   - [ ] [Core Library: `federated_learning_simulation_lib`](#1-core-library-federated_learning_simulation_lib)
   - [ ] [Simulation Engine: `federated_learning_simulator`](#2-simulation-engine-federated_learning_simulator)
@@ -601,7 +601,7 @@ laplacian_type: RandomWalk
 ---
 
 
-## Quick Start: 
+## Quick Start
 
 ### Running with YAML Configuration
 
