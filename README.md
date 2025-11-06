@@ -11,13 +11,13 @@
 
 
 ## 📋 Table of Contents
-- [X] [Overview](#overview) 
-- [X] [Key Features](#key-features)
-- [X] [Research Context](#research-context)
-- [X] [Architecture & Project Structure](#architecture--project-structure)
-- [X] [Installation](#installation)  
+- [X] [Overview](#-overview) 
+- [X] [Key Features](#-key-features)
+- [X] [Research Context](#-research-context)
+- [X] [Architecture & Project Structure](#-architecture--project-structure)
+- [X] [Installation](#-installation) 
+- [X] [Configuration](#configuration)
     ### TODOs
-- [ ] [Configuration](#configuration)
 - [ ] [Quick Start](#quick-start)
 - [ ] [Detailed Component Guide](#detailed-component-guide)
   - [ ] [Core Library: `federated_learning_simulation_lib`](#1-core-library-federated_learning_simulation_lib)
@@ -304,7 +304,7 @@ Each federated learning algorithm has its dedicated directory containing dataset
 | Directory | Algorithm | Description |
 |-----------|-----------|-------------|
 | `fed_avg/` | FedAvg | Baseline with random client sampling |
-| `graph_fed_avg/` | **GRAIL-FL** | Our proposed graph-based selection (named `graph_fed_avg` in code as) |
+| `graph_fed_avg/` | **GRAIL-FL** | Our proposed graph-based selection (named `graph_fed_avg` in code) |
 | `power_of_choice/` | Power-of-Choice | Loss-based client selection |
 | *(others in development)* | - | Additional state-of-the-art methods |
 
@@ -497,7 +497,7 @@ learning_rate_scheduler_kwargs:
 | **Dataset Configuration** |
 | `dataset_name` | `CIFAR10` | Dataset identifier | `MNIST`, `CIFAR10`, `CIFAR100`, `ImageNet` |
 | `dataset_kwargs.dataset_type` | `Vision` | Dataset category | `Vision`, `Medical`, `Text`                    |
-| `dataset_kwargs.dataset_sampling` | `dirichlet_split` | Data partitioning method | `iid`, `dirichlet_split`, `pathological_split` |
+| `dataset_kwargs.dataset_sampling` | `dirichlet_split` | Data partitioning method | `iid`, `dirichlet_split`, |
 | `dataset_kwargs.classes` | `[0,1,2,3,4,5,6,7,8,9]` | Class labels to use | List of integers                               |
 | **Sampling Configuration** |
 | `dataset_sampling_kwargs.concentration` | `0.5` | Dirichlet concentration (α) | `0.1` (high heterogeneity) - `1.0` (near IID)  |
@@ -531,5 +531,71 @@ Controls the spectral clustering for client grouping and selection.
 |-----------|-------|--------------------------------------|-------------------------------------------|
 | `family_number` | `4` | Number of client clusters (families) | \>2                                       |
 | `laplacian_type` | `RandomWalk` | Graph Laplacian normalization        | `RandomWalk`, `Symmetric`, `Unnormalized` |
+
+---
+
+
+
+### Complete GRAIL-FL Configuration Example
+```yaml
+# federated_learning_simulator/conf/graph_fed_avg/cifar10.yaml
+---
+# General
+distributed_algorithm: graph_fed_avg
+exp_name: "c510"
+debug: false
+
+# Training Parameters
+optimizer_name: AdamW
+optimizer_kwargs:
+  betas: [0.9, 0.99]
+  eps: 1e-8
+  weight_decay: 0.00001
+
+learning_rate_scheduler_name: ReduceLROnPlateau
+learning_rate_scheduler_kwargs:
+  mode: "max"
+  factor: 0.5
+  patience: 5
+
+batch_size: 64
+epoch: 3
+learning_rate: 0.0001
+
+# Model Configuration
+model_name: densenet40
+model_kwargs:
+  num_classes: 10
+  keep_model_cache: false
+
+# Dataset Configuration
+dataset_name: CIFAR10
+dataset_kwargs:
+  dataset_type: Vision
+  dataset_sampling: dirichlet_split
+  classes: [0,1,2,3,4,5,6,7,8,9]
+
+dataset_sampling_kwargs:
+  concentration: 0.5  # α=0.5 → moderate heterogeneity
+
+# Distributed Learning Parameters
+worker_number: 10
+round: 150
+algorithm_kwargs:
+  distribute_init_parameters: True
+  node_sample_percent: 0.7
+  node_random_selection: false
+
+# GRAIL-FL: Graph Representation
+graph_worker: true
+graph_type: KNN
+num_neighbor: 2
+threshold: 0.0
+similarity_function: Gaussian
+
+# GRAIL-FL: Spectral Clustering
+family_number: 4
+laplacian_type: RandomWalk
+```
 
 ---
