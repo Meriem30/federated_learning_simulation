@@ -15,8 +15,9 @@
 - [X] [Key Features](#key-features)
 - [X] [Research Context](#research-context)
 - [X] [Architecture & Project Structure](#architecture--project-structure)
+- [X] [Installation](#installation)  
     ### TODOs
-- [ ] [Installation](#installation)  
+- [ ] [Configuration](#configuration)
 - [ ] [Quick Start](#quick-start)
 - [ ] [Detailed Component Guide](#detailed-component-guide)
   - [ ] [Core Library: `federated_learning_simulation_lib`](#1-core-library-federated_learning_simulation_lib)
@@ -25,7 +26,6 @@
   - [ ] [Medical Imaging: `torch_medical`](#4-medical-imaging-torch_medical-optional)
   - [ ] [Utility Libraries: `other_libs` & `torch_kit`](#5-utility-libraries-other_libs--torch_kit)
 - [ ] [Experimental Workflows](#experimental-workflows)
-- [ ] [Configuration](#configuration)
 - [ ] [Results & Visualization](#results--visualization)
 - [ ] [Citation](#citation)
 - [ ] [Contributing](#contributing)
@@ -171,13 +171,13 @@ conda activate FL_projects
 # Check CUDA availability and core installations
 
 python -c "import torch, torchvision, torchmetrics; \
-print(f'✅ PyTorch version: {torch.__version__}'); \
-print(f'✅ TorchVision version: {torchvision.__version__}'); \
-print(f'✅ TorchMetrics version: {torchmetrics.__version__}'); \
-print(f'✅ CUDA available: {torch.cuda.is_available()}'); \
-print(f'🚀 CUDA version: {torch.version.cuda if torch.cuda.is_available() else \"N/A\"}'); \
-print(f'🚀 CUDA device count: {torch.cuda.device_count() if torch.cuda.is_available() else 0}'); \
-print(f'🚀 CUDA device name: {torch.cuda.get_device_name(0) if torch.cuda.is_available() else \"CPU mode only\"}')"
+print(f'PyTorch version: {torch.__version__}'); \
+print(f'TorchVision version: {torchvision.__version__}'); \
+print(f'TorchMetrics version: {torchmetrics.__version__}'); \
+print(f'CUDA available: {torch.cuda.is_available()}'); \
+print(f'CUDA version: {torch.version.cuda if torch.cuda.is_available() else \"N/A\"}'); \
+print(f'CUDA device count: {torch.cuda.device_count() if torch.cuda.is_available() else 0}'); \
+print(f'CUDA device name: {torch.cuda.get_device_name(0) if torch.cuda.is_available() else \"CPU mode only\"}')"
 ```
 
 
@@ -186,13 +186,13 @@ print(f'🚀 CUDA device name: {torch.cuda.get_device_name(0) if torch.cuda.is_a
 If you have GPU-enabled system, and depending on your setup, you would see something like the messages below:
 
 ```bash
-✅ PyTorch version: 2.3.1
-✅ TorchVision version: 0.18.1
-✅ TorchMetrics version: 1.3.0
-✅ CUDA available: True
-🚀 CUDA version: 12.1
-🚀 CUDA device count: 1
-🚀 CUDA device name: NVIDIA GeForce RTX 3080 # (your nvidia device, otherwise you'll get: CPU mode only)
+PyTorch version: 2.3.1
+TorchVision version: 0.18.1
+TorchMetrics version: 1.3.0
+CUDA available: True
+CUDA version: 12.1
+CUDA device count: 1
+CUDA device name: NVIDIA GeForce RTX 3080 # (your nvidia device, otherwise you'll get: CPU mode only)
 ```
 
 ---
@@ -244,3 +244,292 @@ python federated_learning_simulator/simulator.py \
     ++fed_avg.algorithm_kwargs.node_sample_percent=1 \
     ++fed_avg.debug=True
  ```
+
+
+## ⚙️ Configuration
+
+The framework uses a **hierarchical configuration system** powered by [Hydra](https://hydra.cc/), enabling flexible experiment management through layered YAML files. Configuration follows a three-level architecture from global settings to algorithm-specific parameters.
+
+---
+
+### Configuration Architecture
+```
+federated_learning_simulator/
+├── conf/
+│   ├── global.yaml                    # Level I: Global/Fixed parameters
+│   ├── fed_avg/                       # Level II: Algorithm-specific configs
+│   │   ├── mnist.yaml
+│   │   ├── cifar10.yaml
+│   │   └── cifar100.yaml
+│   ├── graph_fed_avg/                 # Level II: GRAIL-FL algorithm configs
+│   │   ├── mnist.yaml                 # GRAIL-FL configuration for MNIST
+│   │   ├── cifar10.yaml               # GRAIL-FL configuration for CIFAR-10
+│   │   └── cifar100.yaml              # GRAIL-FL configuration for CIFAR-100
+│   └── power_of_choice/               # Level II: Other algorithms...
+│       ├── mnist.yaml
+│       └── cifar10.yaml
+├── log/                               # Generated logs (grouped by exp_name)
+└── session/                           # Session checkpoints and JSON results
+```
+
+---
+
+### Level I: Global Configuration (`conf/global.yaml`)
+
+The global configuration file defines **experiment-wide settings** and **logging parameters** that remain consistent across different algorithm runs. Here is an example of how it could be configured:
+```yaml
+# federated_learning_simulator/conf/global.yaml
+
+# Experiment identification
+exp_name: cifar10_niid_0.3  # Groups logs/sessions for the same experimental setup
+
+# Logging configuration
+log_level: INFO  # Options: DEBUG, INFO, WARNING, ERROR
+log_performance_metric: true
+
+# For efficiency
+cache_transforms: cpu
+```
+
+> **💡 Best Practice**: Keep `exp_name` identical when comparing different algorithms (e.g., FedAvg vs GRAIL-FL) on the same dataset/heterogeneity setting. This ensures logs and sessions are organized under the same experiment group for easy comparison.
+
+---
+
+### Level II: Algorithm-Specific Directories
+
+Each federated learning algorithm has its dedicated directory containing dataset-specific configuration files.
+
+**Available Algorithm Directories:**
+
+| Directory | Algorithm | Description |
+|-----------|-----------|-------------|
+| `fed_avg/` | FedAvg | Baseline with random client sampling |
+| `graph_fed_avg/` | **GRAIL-FL** | Our proposed graph-based selection (named `graph_fed_avg` in code as) |
+| `power_of_choice/` | Power-of-Choice | Loss-based client selection |
+| *(others in development)* | - | Additional state-of-the-art methods |
+
+> **📝 Note**: In our codebase, **GRAIL-FL** is referred to as `graph_fed_avg`. This naming predates the finalized terminology used in our paper. The identifier reflects that the algorithm retains the FedAvg aggregation mechanism while introducing graph-based client selection.
+---
+
+### Level III: Dataset-Specific Configuration Files
+
+Within each algorithm directory, separate YAML files configure parameters for different datasets.
+
+### GRAIL-FL Configuration Example
+
+Below is a complete breakdown of parameters in `federated_learning_simulator/conf/graph_fed_avg/cifar10.yaml`:
+
+
+
+#### **A. Distributed Learning Parameters**
+
+Parameters controlling the federated learning simulation environment.
+
+| Parameter                   | Value | Description | Possible Values |
+|-----------------------------|-------|-------------|-----------------|
+| **General**                 |
+| `distributed_algorithm`     | `graph_fed_avg` | FL algorithm (GRAIL-FL) | `fed_avg`, `graph_fed_avg`, `power_of_choice` |
+| `exp_name`                  | `c510` | Short experiment identifier | Any string (keep consistent with `global.yaml`) |
+| `debug`                     | `false` | Enable debug mode | `true`, `false` |
+| **Client Configuration**    |
+| `worker_number`             | `65` | Total number of clients in federation | Any integer (10-1000+) |
+| `node_sample_percent`       | `0.7` | Fraction of clients selected per round | `0.0` - `1.0` |
+| `node_random_selection`     | `false` | Use random selection (overrides graph-based) | `true`, `false` |
+| **Communication**           |
+| `distribute_init_parameters` | `True` | Send initial model to all clients | `True`, `False` |
+| `round`                     | `150` | Total federated learning rounds | Any integer (50-500) |
+
+---
+
+#### **B. Training Parameters**
+
+Parameters for local client training and optimization.
+
+| Parameter                       | Value               | Description | Possible Values |
+|---------------------------------|---------------------|-------------|-----------------|
+| **Local Training**              |
+| `batch_size`                    | `64`                | Mini-batch size for local training | 16, 32, 64, 128, 256 |
+| `epoch`                         | `3`                 | Local epochs per round | 1-10 |
+| `learning_rate`                 | `0.00001`           | Initial learning rate | `1e-5` - `1e-1` |
+| **Optimizer**                   |
+| `optimizer_name`                | `AdamW` | Optimizer algorithm | `SGD`, `Adam`, `AdamW`, `RMSprop` |
+| `optimizer_kwargs`              | (see below) | Optimizer-specific parameters | Varies by optimizer (follows PyTorch API) |
+| **Learning Rate Scheduler**     |
+| `learning_rate_scheduler_name`  | `ReduceLROnPlateau` | LR scheduler type | `CosineAnnealingLR`, `ReduceLROnPlateau`, `StepLR`, `MultiStepLR` |
+| `learning_rate_scheduler_kwargs` | (see below) | Scheduler-specific parameters | Varies by scheduler (follows PyTorch API) |
+
+See the next two subsections for details on `optimizer_kwargs` and `learning_rate_scheduler_kwargs` configuration.
+___
+
+<details> 
+
+<summary><b>Optimizer-Specific Parameters</b></summary>
+
+The parameters under `optimizer_kwargs` depend on the chosen `optimizer_name` and follow the **PyTorch optimizer API**. Below are examples for common optimizers:
+
+<details>
+<summary><b>AdamW</b> (used in example config)</summary>
+
+```yaml
+optimizer_kwargs:
+  betas: [0.9, 0.99]      # Exponential decay rates for moment estimates
+  eps: 1e-8               # Numerical stability epsilon
+  weight_decay: 0.0001    # L2 regularization strength (decoupled)
+```
+
+| Parameter | Description | Typical Values |
+|-----------|-------------|----------------|
+| `betas` | Coefficients for computing running averages | `[0.9, 0.999]`, `[0.9, 0.99]` |
+| `eps` | Term for numerical stability | `1e-8`, `1e-10` |
+| `weight_decay` | Weight decay (L2 penalty) | `0.0` - `0.01` |
+
+</details>
+
+<details>
+
+<summary><b>SGD</b></summary>
+
+```yaml
+optimizer_kwargs:
+  momentum: 0.9           # Momentum factor
+  weight_decay: 0.0001    # L2 regularization
+```
+
+</details>
+
+<details>
+<summary><b>Adam</b></summary>
+
+```yaml
+optimizer_kwargs:
+  betas: [0.9, 0.999]     # Coefficients for moment estimates
+  eps: 1e-8               # Numerical stability
+  weight_decay: 0.0       # L2 regularization (coupled with gradient)
+```
+
+</details>
+
+> **📘 Reference**: See [PyTorch Optimizers Documentation](https://pytorch.org/docs/stable/optim.html) for complete parameter lists for each optimizer.
+
+----
+
+
+</details>
+
+
+<details> 
+
+
+<summary><b>Scheduler-Specific Parameters</b></summary>
+
+
+The parameters under `learning_rate_scheduler_kwargs` depend on the chosen `learning_rate_scheduler_name` and follow the **PyTorch scheduler API**.
+
+<details>
+<summary><b>ReduceLROnPlateau</b> (used in example config)</summary>
+
+```yaml
+learning_rate_scheduler_kwargs:
+  mode: "max"              # Metric optimization direction
+  factor: 0.5              # Factor by which LR is reduced
+  patience: 5              # Rounds to wait before reducing LR
+```
+
+
+| Parameter | Description | Values                                 |
+|-----------|-------------|----------------------------------------|
+| `mode` | Whether to maximize or minimize monitored metric | `"max"` or `"min"`          |
+| `factor` | Multiplicative factor of LR decrease | `0.1` - `0.9` (e.g., `0.5` = halve LR) |
+| `patience` | Number of rounds with no improvement before reduction | `1` - `20`                             |
+
+
+> **💡 Tip**: Use `mode: "max"` when tracking **accuracy** or F1-score, and `mode: "min"` when tracking **loss**.
+
+</details>
+
+<details>
+<summary><b>CosineAnnealingLR</b></summary>
+
+```yaml
+learning_rate_scheduler_kwargs:
+  T_max: 150              # Maximum number of iterations (typically = total rounds)
+  eta_min: 1e-6           # Minimum learning rate
+```
+
+</details>
+
+<details>
+<summary><b>StepLR</b></summary>
+
+```yaml
+learning_rate_scheduler_kwargs:
+  step_size: 30           # Period of LR decay
+  gamma: 0.1              # Multiplicative factor of LR decay
+```
+
+</details>
+
+<details>
+<summary><b>MultiStepLR</b></summary>
+
+```yaml
+learning_rate_scheduler_kwargs:
+  milestones: [50, 100]   # Rounds at which to reduce LR
+  gamma: 0.1              # Multiplicative factor of LR decay
+```
+
+</details>
+
+> **📘 Reference**: See [PyTorch LR Schedulers Documentation](https://pytorch.org/docs/stable/optim.html#how-to-adjust-learning-rate) for complete parameter lists for each scheduler.RéessayerClaude peut faire des erreurs. Assurez-vous de vérifier ses réponses.
+
+---
+</details>
+
+
+#### **C. Model & Dataset Parameters**
+
+| Parameter | Value | Description | Possible Values                                |
+|-----------|-------|-------------|------------------------------------------------|
+| **Model Configuration** |
+| `model_name` | `densenet40` | Model architecture | `resnet18`, `densenet40`,  |
+| `model_kwargs.num_classes` | `10` | Number of output classes | Dataset-dependent (10, 100,...)                |
+| `model_kwargs.keep_model_cache` | `false` | Cache model states | `true`, `false`                                |
+| **Dataset Configuration** |
+| `dataset_name` | `CIFAR10` | Dataset identifier | `MNIST`, `CIFAR10`, `CIFAR100`, `ImageNet` |
+| `dataset_kwargs.dataset_type` | `Vision` | Dataset category | `Vision`, `Medical`, `Text`                    |
+| `dataset_kwargs.dataset_sampling` | `dirichlet_split` | Data partitioning method | `iid`, `dirichlet_split`, `pathological_split` |
+| `dataset_kwargs.classes` | `[0,1,2,3,4,5,6,7,8,9]` | Class labels to use | List of integers                               |
+| **Sampling Configuration** |
+| `dataset_sampling_kwargs.concentration` | `0.5` | Dirichlet concentration (α) | `0.1` (high heterogeneity) - `1.0` (near IID)  |
+
+---
+
+#### **D. GRAIL-FL Specific Parameters**
+
+Parameters unique to our graph-based client selection algorithm.
+
+##### **D.1 Graph Representation Parameters**
+
+Controls how the client similarity graph is constructed.
+
+| Parameter | Value | Description                                                   | Possible Values                                 |
+|-----------|-------|---------------------------------------------------------------|-------------------------------------------------|
+| `graph_worker` | `true` | Enable graph-based representation and selection               | `true`, `false`                                 |
+| `graph_type` | `KNN` | Graph construction method                                     | `knn`, `mutual_knn`, `fully_connected`          |
+| `num_neighbor` | `2` | Number of nearest neighbors (KNN)                             | 1-10                                            |
+| `threshold` | `0.0` | Minimum similarity for constructing the edges                 | `0.0` - `1.0`                                   |
+| `similarity_function` | `Gaussian` | Similarity function to be applied on client evaluation matrix | `gaussian`, `cosine`, `euclidean`, `customized` |
+
+
+
+
+##### **D.2 Spectral Clustering Parameters**
+
+Controls the spectral clustering for client grouping and selection.
+
+| Parameter | Value | Description                          | Possible Values                           |
+|-----------|-------|--------------------------------------|-------------------------------------------|
+| `family_number` | `4` | Number of client clusters (families) | \>2                                       |
+| `laplacian_type` | `RandomWalk` | Graph Laplacian normalization        | `RandomWalk`, `Symmetric`, `Unnormalized` |
+
+---
