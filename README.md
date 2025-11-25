@@ -480,7 +480,7 @@ learning_rate_scheduler_kwargs:
 
 </details>
 
-> **📘 Reference**: See [PyTorch LR Schedulers Documentation](https://pytorch.org/docs/stable/optim.html#how-to-adjust-learning-rate) for complete parameter lists for each scheduler.RéessayerClaude peut faire des erreurs. Assurez-vous de vérifier ses réponses.
+> **📘 Reference**: See [PyTorch LR Schedulers Documentation](https://pytorch.org/docs/stable/optim.html#how-to-adjust-learning-rate) for complete parameter lists for each scheduler.
 
 ---
 </details>
