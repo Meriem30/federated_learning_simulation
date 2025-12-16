@@ -1,4 +1,5 @@
 import multiprocessing
+import os
 from typing import Any
 
 from ..system_info import OSType, get_operating_system_type
@@ -13,6 +14,13 @@ class ProcessContext(ConcurrencyContext):
                 case OSType.FreeBSD:
                     ctx = ctx.get_context("fork")
         self.__underlying_ctx = ctx
+        # Configure PyTorch multiprocessing sharing strategy to avoid FD passing issues on Linux
+        try:
+            import torch.multiprocessing as torch_mp
+            torch_mp.set_sharing_strategy("file_system")
+        except Exception:
+            # fallback via env for subprocesses
+            os.environ.setdefault("PYTORCH_SHARING_STRATEGY", "file_system")
 
     def get_ctx(self) -> Any:
         return self.__underlying_ctx
