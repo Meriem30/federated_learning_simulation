@@ -1,9 +1,14 @@
 import random
 
+import torch
+from other_libs.algorithm.mapping_op import get_mapping_values_by_key_order
+from torch_kit import MachineLearningPhase, cat_tensors_to_vector
+
+
 from .protocol import AggregationServerProtocol
+from federated_learning_simulation_lib.worker.protocol import WorkerProtocol
 
-
-class RoundSelectionMixin(AggregationServerProtocol):
+class RoundSelectionMixin(AggregationServerProtocol, WorkerProtocol):
     """
         extend the AggregationServerProtocol
         manage the selection of a subset of workers
@@ -22,21 +27,49 @@ class RoundSelectionMixin(AggregationServerProtocol):
         node_sample_percent: float = self.config.algorithm_kwargs.get(
             "node_sample_percent", 1.0
         )
-        result: set[int] = set()
-        # if specified
+        loss_client_selection: bool = self.config.algorithm_kwargs.get(
+            "loss_client_selection", False
+        )
+        # determine how many workers to select this round
         if random_client_number is not None:
-            # select randomly
-            result = set(
-                random.sample(list(range(self.worker_number)), k=random_client_number)
-            )
-        # if not, select all available workers
-        elif node_sample_percent != 1.0:
-            random_client_number = int(node_sample_percent * self.worker_number)
-            result = set(
-                random.sample(list(range(self.worker_number)), k=random_client_number)
-            )
+            k = max(1, min(int(random_client_number), self.worker_number))
         else:
-            result = set(range(self.worker_number))
+            if node_sample_percent >= 1.0:
+                k = self.worker_number
+            else:
+                k = max(1, min(int(self.worker_number * node_sample_percent), self.worker_number))
+
+        # loss-based selection takes precedence if enabled and not selecting all
+        result: set[int] = set()
+        if loss_client_selection and k < self.worker_number and getattr(self, "trainer", None) is not None:
+            inferencer = self.trainer.get_inferencer(
+                phase=MachineLearningPhase.Training, deepcopy_model=False
+            )
+            if "batch_number" in self.trainer.dataloader_kwargs:
+                batch_size = (
+                    self.trainer.dataset_size / self.trainer.dataloader_kwargs["batch_number"]
+                )
+                inferencer.remove_dataloader_kwargs("batch_number")
+                inferencer.update_dataloader_kwargs(batch_size=batch_size)
+            inferencer.update_dataloader_kwargs(ensure_batch_size_cover=True)
+
+            # get per-worker losses and convert to probabilities
+            sample_loss_dict = inferencer.get_sample_loss()
+            sample_indices = sorted(sample_loss_dict.keys())
+            sample_loss = cat_tensors_to_vector(get_mapping_values_by_key_order(sample_loss_dict))
+            sample_prob = sample_loss / sample_loss.sum()
+
+            # multinomial sampling without replacement according to loss
+            k = min(k, sample_prob.numel())
+            sample_res = torch.multinomial(sample_prob, k, replacement=False)
+            assert sample_res.numel() != 0
+            result = set(sample_indices[idx] for idx in sample_res.tolist())
+        else:
+            # uniform random or select all
+            if k >= self.worker_number:
+                result = set(range(self.worker_number))
+            else:
+                result = set(random.sample(list(range(self.worker_number)), k=k))
         # store the selected subset under the current round index
         self.selection_result[self.round_index] = result
         return result
@@ -138,15 +171,3 @@ class RoundSelectionMixin(AggregationServerProtocol):
         self.selection_result[self.round_index] = selected_workers
 
         return selected_workers
-
-
-
-
-
-
-
-
-
-
-
-
