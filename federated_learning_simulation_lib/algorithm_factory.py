@@ -169,7 +169,8 @@ def get_worker_config(
     # check the algo specified in conf exists in the CentralizedAlgorithmFactory
     assert CentralizedAlgorithmFactory.has_algorithm(config.distributed_algorithm)
     # set the default topology class to Pipe
-    topology_class = ProcessPipeCentralTopology
+    #topology_class = ProcessPipeCentralTopology
+    topology_class = ProcessQueueCentralTopology
     if get_operating_system_type() == OSType.Windows or "no_pipe" in os.environ:
         # if true, change it to Queue
         topology_class = ProcessQueueCentralTopology
