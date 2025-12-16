@@ -1,4 +1,6 @@
 from typing import Any
+from torch_kit.tensor import recursive_tensor_op
+import torch
 
 from ..concurrency import ProcessContext
 from .topology import Topology
@@ -48,9 +50,18 @@ class ProcessPipeCentralTopology(CentralTopology):
 
     def get_from_worker(self, worker_id: int) -> Any:
         assert 0 <= worker_id < self.worker_num
-        return self.__pipes[worker_id][0].recv()
+        data = self.__pipes[worker_id][0].recv()
+        # ensure received tensors are on CPU (they will be)
+        return data
 
     def send_to_worker(self, worker_id: int, data: Any) -> None:
+        # move any tensors to CPU to avoid passing CUDA storages via FD
+        def to_cpu(t: torch.Tensor, **kwargs: Any) -> torch.Tensor:
+            try:
+                return t.detach().cpu()
+            except Exception:
+                return t
+        recursive_tensor_op(data, fun=to_cpu)
         self.__pipes[worker_id][0].send(data)
 
     def has_data_from_worker(self, worker_id: int) -> bool:
@@ -59,7 +70,8 @@ class ProcessPipeCentralTopology(CentralTopology):
 
     def get_from_server(self, worker_id: int) -> Any:
         assert 0 <= worker_id < self.worker_num
-        return self.__pipes[worker_id][1].recv()
+        data = self.__pipes[worker_id][1].recv()
+        return data
 
     def has_data_from_server(self, worker_id: int) -> bool:
         assert 0 <= worker_id < self.worker_num
@@ -67,6 +79,12 @@ class ProcessPipeCentralTopology(CentralTopology):
 
     def send_to_server(self, worker_id: int, data: Any) -> None:
         assert 0 <= worker_id < self.worker_num
+        def to_cpu(t: torch.Tensor, **kwargs: Any) -> torch.Tensor:
+            try:
+                return t.detach().cpu()
+            except Exception:
+                return t
+        recursive_tensor_op(data, fun=to_cpu)
         return self.__pipes[worker_id][1].send(data)
 
     def close_server_channel(self) -> None:
