@@ -1,0 +1,44 @@
+name: FL_projects
+channels:
+  - pytorch
+  - nvidia
+  - conda-forge
+  - defaults
+  - conda-forge::torchmetrics
+dependencies:
+  - python=3.11.5
+  - pytorch=2.2.2
+  - torchvision=0.17.2
+  - torchaudio=2.2.2
+  - pytorch-cuda=12.1
+  - torchmetrics=1.3.*
+  - transformers>=4.38,<4.40
+  # original packages
+  - huggingface_hub
+  - colorlog
+  - spacy
+  - dill
+  - psutil
+  - gevent
+  - requests
+  - filelock
+  - pyan3
+  - ipython
+  - pycallgraph2
+  - enum_tools
+  - omegaconf
+  - hydra-core
+  - datasets
+  - ogb
+  - networkx
+  - pydicom
+  - hydra-core
+  - pynvml
+  - matplotlib
+  - numpy<2 # =1.26
+  - scikit-learn
+  - seaborn
+  - scipy
+
+variables:
+  HYDRA_FULL_ERROR: '1'
