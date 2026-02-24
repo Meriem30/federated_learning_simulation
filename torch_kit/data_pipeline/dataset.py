@@ -30,7 +30,7 @@ def get_dataset_size(dataset: Any) -> int:
     if hasattr(dataset, "__len__"):
         log_debug("len processing for %s dataset type ", type(dataset))
         len_data = dataset.__len__() # len(dataset)
-        log_warning("returning the dataset len attribute : %s ", len_data)
+        log_debug("returning the dataset len attribute : %s ", len_data)
         return len_data
     match dataset:
         # if data is IterableDataset() to be loaded on the fly, rather than fully loaded in memory
