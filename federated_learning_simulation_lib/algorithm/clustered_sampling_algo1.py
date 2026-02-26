@@ -1,4 +1,4 @@
-from federated_learning_simulation_lib import FedAVGAlgorithm
+from .fed_avg_algorithm import FedAVGAlgorithm
 
 class ClusteredSamplingAlgo1(FedAVGAlgorithm):
     """
