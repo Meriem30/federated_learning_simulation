@@ -1,8 +1,8 @@
 from federated_learning_simulation_lib import (CentralizedAlgorithmFactory,
-                                                AggregationWorker)
+                                               AggregationWorker,
+                                               ClusteredSamplingServerAlgo1,
+                                               ClusteredSamplingAlgo1)
 import logging
-from federated_learning_simulation_lib.server import ClusteredSamplingServerAlgo1
-from federated_learning_simulation_lib.algorithm import ClusteredSamplingAlgo1
 
 logger = logging.getLogger(__name__)
 
