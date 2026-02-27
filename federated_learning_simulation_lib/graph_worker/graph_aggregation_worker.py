@@ -32,6 +32,7 @@ class GraphAggregationWorker(GraphWorker, AggregationWorker, ClientMixin):  # Ag
         self.__model_cache: ModelCache = ModelCache()
         self.__worker_mi_evaluator: Inferencer
         self.__global_mi_evaluator: Inferencer
+        self._was_selected_this_round: bool = True  # default True  assume selected until told otherwise
         self.__mi: float = 0.0
 
 
@@ -40,8 +41,9 @@ class GraphAggregationWorker(GraphWorker, AggregationWorker, ClientMixin):  # Ag
             super(): save the trainer's hyperparams to a file after training
             for graph_aggregation_worker
         """
+        self._was_selected_this_round = True
         AggregationWorker._after_training(self)
-        if self.config.round > self.round_index:
+        if self.config.round > self.round_index and getattr(self, '_was_selected_this_round', True):
             self._compute_worker_mi()
 
     """def _get_aggregated_model_from_path(self, round_idx: int) -> ModelParameter:
@@ -84,8 +86,8 @@ class GraphAggregationWorker(GraphWorker, AggregationWorker, ClientMixin):  # Ag
             f"Round {self.round_index}. Aggregated model not found or corrupted at {aggregated_model_path} after {max_retries} retries."
         )"""
 
-    def _get_aggregated_model_from_path(self, round_idx: int) -> ModelParameter:
-        """
+    """def _get_aggregated_model_from_path(self, round_idx: int) -> ModelParameter:
+        "
         Load the aggregated global model saved by the server for the given round.
 
         In large FL deployments (75+ clients), the server may take significantly
@@ -95,7 +97,7 @@ class GraphAggregationWorker(GraphWorker, AggregationWorker, ClientMixin):  # Ag
           - Single-check file stability (compare size across two polls)
           - A hard timeout ceiling to avoid infinite blocking
           - Actionable error reporting distinguishing timeout vs corruption
-        """
+        "
         aggregated_model_path = os.path.join(
             self.config.save_dir,
             "aggregated_model",
@@ -208,7 +210,146 @@ class GraphAggregationWorker(GraphWorker, AggregationWorker, ClientMixin):  # Ag
                 round_idx, actual_wait, attempt, elapsed
             )
             time.sleep(actual_wait)
-            wait_time = min(wait_time * backoff_factor, max_wait_per_retry)
+            wait_time = min(wait_time * backoff_factor, max_wait_per_retry)"""
+
+    def _get_aggregated_model_from_path(self, round_idx: int) -> ModelParameter | None:
+        """
+        Load the aggregated global model for round_idx.
+
+        Returns:
+            ModelParameter   if this worker participated and model loaded OK.
+            None             if this worker was skipped/unselected this round.
+                              Caller must handle gracefully (skip MI computation).
+
+        Protocol:
+            1. Poll for round_{idx}.manifest.json written atomically by server.
+            2. If manifest says this worker was skipped → return None immediately.
+            3. If manifest says this worker participated → load .pk file.
+            4. Fall back to .pk-only polling if manifest never arrives within
+               half the hard timeout (handles rounds predating this fix).
+        """
+        import json
+        base_dir = os.path.join(self.config.save_dir, "aggregated_model")
+        model_path = os.path.join(base_dir, f"round_{round_idx}.pk")
+        manifest_path = os.path.join(base_dir, f"round_{round_idx}.manifest.json")
+
+        initial_wait: float = 5.0
+        max_wait: float = 30.0
+        backoff: float = 1.3
+        hard_timeout: float = 900.0  # 15 min ceiling  adjust per your hardware
+        log_interval: int = 6  # log "still waiting" every N attempts
+
+        start = time.time()
+        wait = initial_wait
+        attempt = 0
+        previous_size = None
+
+        log_info(
+            "Round %s. Worker %s waiting for aggregated model (timeout: %ds).",
+            round_idx, self.worker_id, hard_timeout
+        )
+
+        while True:
+            elapsed = time.time() - start
+            attempt += 1
+
+            # ── Hard timeout ────────────────────────────────────────────────
+            if elapsed > hard_timeout:
+                raise TimeoutError(
+                    f"Round {round_idx}. Worker {self.worker_id} gave up after "
+                    f"{elapsed:.0f}s ({attempt} attempts). Neither model nor manifest "
+                    f"appeared. Server may be deadlocked or crashed. "
+                    f"Check server logs around round {round_idx}."
+                )
+
+            # ── Step 1: Check manifest (fast-path, breaks skip-deadlock) ────
+            manifest = self._try_load_manifest(manifest_path)
+            if manifest is not None:
+                participating = manifest.get("participating_worker_ids", [])
+                if self.worker_id not in participating:
+                    log_warning(
+                        "Round %s. Worker %s was NOT selected this round "
+                        "(%d/%d workers participated). Skipping MI computation.",
+                        round_idx, self.worker_id,
+                        len(participating), manifest.get("total_workers", "?")
+                    )
+                    return None  # ← breaks the deadlock
+
+                log_info(
+                    "Round %s. Worker %s confirmed as participant. Loading model...",
+                    round_idx, self.worker_id
+                )
+                # Manifest guarantees .pk exists  attempt load once directly
+                # before entering the polling loop below.
+
+            # ── Step 2: Load model file ──────────────────────────────────────
+            if os.path.exists(model_path):
+                try:
+                    current_size = os.path.getsize(model_path)
+                except OSError as e:
+                    log_warning("Round %s. stat() failed: %s. Retrying...", round_idx, e)
+                    current_size = None
+
+                if current_size and current_size > 0:
+                    if current_size == previous_size:
+                        # Size stable across two polls → safe to deserialize
+                        try:
+                            with open(model_path, "rb") as f:
+                                model_data = pickle.load(f)
+                            log_info(
+                                "Round %s. Model loaded (attempt %d, %.1fs, %d bytes).",
+                                round_idx, attempt, elapsed, current_size
+                            )
+                            return model_data
+                        except (pickle.UnpicklingError, EOFError) as e:
+                            log_warning(
+                                "Round %s. Corrupt pickle (attempt %d): %s. Retrying...",
+                                round_idx, attempt, e
+                            )
+                            previous_size = None
+                        except Exception as e:
+                            log_warning(
+                                "Round %s. Unexpected read error (attempt %d): %s.",
+                                round_idx, attempt, e
+                            )
+                            previous_size = None
+                    else:
+                        if attempt % log_interval == 1:
+                            log_warning(
+                                "Round %s. File size: %s → %d bytes. Still writing...",
+                                round_idx, previous_size, current_size
+                            )
+                        previous_size = current_size
+                else:
+                    previous_size = current_size
+            else:
+                if attempt % log_interval == 1:
+                    log_warning(
+                        "Round %s. Worker %s: model not found yet "
+                        "(attempt %d, elapsed %.0fs).",
+                        round_idx, self.worker_id, attempt, elapsed
+                    )
+                previous_size = None
+
+            # ── Backoff ──────────────────────────────────────────────────────
+            time.sleep(min(wait, max_wait))
+            wait = min(wait * backoff, max_wait)
+
+    def _try_load_manifest(self, manifest_path: str) -> dict | None:
+        """
+        Safely load a round manifest JSON. Returns None if not yet available
+        or if the file is being written (mid-write race condition).
+        Never raises.
+        """
+        import json
+        if not os.path.exists(manifest_path):
+            return None
+        try:
+            with open(manifest_path, "r") as f:
+                return json.load(f)
+        except (json.JSONDecodeError, OSError):
+            return None
+
 
     def _get_cached_model(self) -> ModelParameter:
         """
@@ -474,7 +615,18 @@ class GraphAggregationWorker(GraphWorker, AggregationWorker, ClientMixin):  # Ag
             # ✅ Load the global model from cache (ensuring only the model changes)
             # ✅ Load the PRE-TRAINING global model snapshot from the shared server cache for this round
             # The server saves the model it is about to send at save_dir/aggregated_model/round_{round}.pk
+            # ── Step 2: Load global model ──────────────────────────────────────────
             global_model_state_dict = self._get_aggregated_model_from_path(self.round_index)
+            if global_model_state_dict is None:
+                # This worker was skipped/unselected this round.
+                # Carry forward the MI from the previous round to avoid stale zero.
+                log_warning(
+                    "Round %s. Worker %s skipped  carrying forward MI from previous round: %s",
+                    self.round_index, self.worker_id, self._state.mi
+                )
+                self.__mi = self._state.mi if self._state.mi is not None else 0.0
+                self._state.set_mi(self.__mi)
+                return  # exit _compute_worker_mi cleanly, no deadlock
             self.__global_mi_evaluator.running_model_evaluator.model_util.load_parameters(global_model_state_dict)
             # Use the same device as the worker MI evaluator for consistency
             log_warning("Using same device for global MI evaluator: %s", trainer_device)
@@ -760,14 +912,13 @@ class GraphAggregationWorker(GraphWorker, AggregationWorker, ClientMixin):  # Ag
         new_family = self._load_family_assignment_from_server(other_data)
         log_info("attributed family: %s, for worker: %s", new_family, self.worker_id)
         # change it in the client state
-        if new_family != 0 & new_family != self._get_worker_family(self.worker_id):
-            log_warning("change to be made for worker %s family")
-            # set the new family
+        if new_family != 0 and new_family != self._get_worker_family(self.worker_id):
+            log_warning("change to be made for worker %s family", self.worker_id)
             self._set_worker_family(self.worker_id, new_family)
             log_warning("new set family for worker %s is: %s",
-                     self.worker_id,
-                     self.get_worker_family(self.worker_id))
-        # load params into the trainer
+                        self.worker_id,
+                        self._get_worker_family(self.worker_id))
+            # load params into the trainer
         load_parameters(
             trainer=self.trainer,
             parameter=parameter,

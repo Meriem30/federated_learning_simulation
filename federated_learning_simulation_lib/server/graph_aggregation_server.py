@@ -2,6 +2,7 @@ import os
 import pickle
 import copy
 import time
+import json
 from typing import Any
 from datetime import datetime
 
@@ -71,10 +72,10 @@ class GraphAggregationServer(Server, PerformanceMixin, RoundSelectionMixin):
         return len(self.get_selected_workers())
 
     def get_selected_workers(self) -> set[int]:
-        if self._families.values() is not None and self.round_index != 1:
+        if self._families and any(self._families.values()) and self.round_index != 1:
             selected_workers  = self._select_workers_from_clusters(self._families)
             return selected_workers
-        return range(self.worker_number)
+        return set(range(self.worker_number))
     def get_tester(self, copy_tester: bool = False) -> Inferencer:
         """
             retrieve the inferencer
@@ -429,19 +430,53 @@ class GraphAggregationServer(Server, PerformanceMixin, RoundSelectionMixin):
 
     def _after_send_result(self, result: Any) -> None:
         """
-            operations after sending the aggregated model to the workers
-            increment the round index (if not intermediate round)
-            clear data from the algorithm
-            if end training: save the cached model
+        Operations after sending the aggregated model to the workers.
+        Increments round index, clears algorithm data, saves model cache,
+        and writes a round manifest so workers can detect skip/participate status
+        without polling forever.
         """
         self._update_network()
         if not result.in_round:
             self._round_index += 1
         self.__algorithm.clear_worker_data()
-        # delete the condition in order to get the model saved after each iteration
-        #if result.end_training or self._stopped():
         assert self._model_cache.has_data
         self._model_cache.save()
+        # Write manifest AFTER model is saved  guarantees model file exists
+        # before any worker reads the manifest and attempts to load the model.
+        self._write_round_manifest()
+
+    def _write_round_manifest(self) -> None:
+        """
+        Write a small JSON manifest signalling that round aggregation is complete
+        and which workers were selected. Workers poll this file to break the
+        deadlock that occurs when unselected workers wait for a model file
+        that was written for a round they did not participate in.
+
+        Written atomically via os.replace to prevent partial-read races.
+        The round index written here is (current - 1) because _round_index
+        was already incremented in _after_send_result before this is called.
+        """
+        import json
+        completed_round = self._round_index - 1
+        manifest_dir = os.path.join(self.config.save_dir, "aggregated_model")
+        os.makedirs(manifest_dir, exist_ok=True)
+        manifest_path = os.path.join(manifest_dir, f"round_{completed_round}.manifest.json")
+        tmp_path = manifest_path + ".tmp"
+        selected = list(self.get_selected_workers())
+        manifest = {
+            "round": completed_round,
+            "status": "complete",
+            "timestamp": time.time(),
+            "participating_worker_ids": selected,
+            "total_workers": self.config.worker_number,
+        }
+        with open(tmp_path, "w") as f:
+            json.dump(manifest, f)
+        os.replace(tmp_path, manifest_path)  # atomic on POSIX
+        log_info(
+            "Round %s manifest written. Selected %d/%d workers: %s",
+            completed_round, len(selected), self.config.worker_number, selected
+        )
 
     def _stopped(self) -> bool:
         """

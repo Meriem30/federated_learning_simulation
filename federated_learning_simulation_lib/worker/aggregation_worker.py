@@ -249,6 +249,7 @@ class AggregationWorker(Worker, ClientMixin):
             result = super()._get_data_from_server()
             log_debug("worker %s getting result from server  of type : %s", self.worker_id, type(result), )
             if result is None:
+                self._was_selected_this_round = False
                 log_info("skip round %s", self.round_index)
                 self._send_data_to_server(None)
                 self._round_index += 1

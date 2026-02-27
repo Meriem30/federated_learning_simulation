@@ -3,6 +3,7 @@ import importlib
 import os
 import uuid
 from typing import Any
+import inspect
 
 import omegaconf
 from other_libs.log import log_debug, log_warning
@@ -20,7 +21,7 @@ class DistributedTrainingConfig(Config):
         self.algorithm_kwargs: dict = {}
         self.worker_number: int = 0
         self.round: int = 0
-        self.dataset_sampling: str = "dirichlet_split"
+        self.dataset_sampling: str = "iid"
         self.dataset_sampling_kwargs: dict[str, Any] = {}
         self.endpoint_kwargs: dict = {}
         self.exp_name: str = "selection_exps"
@@ -145,11 +146,35 @@ class DistributedTrainingConfig(Config):
         dataset_collection = self.create_dataset_collection()
         assert isinstance(dataset_collection, ClassificationDatasetCollection)
         # initialize the sampler according to name:'dataset_sampling' and other params
+        #sampler = get_dataset_collection_split(
+        #    name=self.dataset_sampling,
+        #    dataset_collection=dataset_collection,
+        #    part_number=self.worker_number,
+        #    **self.dataset_sampling_kwargs,
+        #)
+        sampling_kwargs = dict(self.dataset_sampling_kwargs)
+
+        # Remove sampler-specific kwargs that don't belong to the active sampling method.
+        # This prevents e.g. 'concentration' (Dirichlet-only) from being passed to IIDSplit.
+        _dirichlet_only_kwargs = {"concentration"}
+        _iid_only_kwargs = set()
+
+        active_sampling = getattr(self, "dataset_sampling", "iid")
+        if active_sampling == "iid":
+            for k in _dirichlet_only_kwargs:
+                sampling_kwargs.pop(k, None)
+        elif active_sampling == "dirichlet_split":
+            for k in _iid_only_kwargs:
+                sampling_kwargs.pop(k, None)
+
+        #sampler = get_dataset_collection_split(
+        #    dataset_collection=dataset_collection, **sampling_kwargs
+        #)
         sampler = get_dataset_collection_split(
             name=self.dataset_sampling,
             dataset_collection=dataset_collection,
             part_number=self.worker_number,
-            **self.dataset_sampling_kwargs,
+            **sampling_kwargs,
         )
         # iterate over the number of worker
         for practitioner_id in range(self.worker_number):
