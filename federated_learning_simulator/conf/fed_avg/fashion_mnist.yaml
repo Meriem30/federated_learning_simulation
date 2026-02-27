@@ -1,0 +1,37 @@
+---
+dataset_name: FashionMNIST
+model_name: LeNet5
+distributed_algorithm: fed_avg
+optimizer_name: SGD
+optimizer_kwargs:
+  momentum: 0.7          # reduce oscillations
+  weight_decay: 0.0005   # use real weight decay instead of fake
+worker_number: 10
+batch_size: 64
+round: 100
+#learning_rate_scheduler_name: CosineAnnealingLR
+learning_rate_scheduler_name: ReduceLROnPlateau
+learning_rate_scheduler_kwargs:
+  mode: "max"
+  factor: 0.5
+  patience: 5
+epoch: 3
+learning_rate: 0.0005
+model_kwargs:
+    num_classes: 10
+    keep_model_cache: false
+dataset_kwargs:
+    dataset_type: Vision
+    dataset_sampling: iid
+    classes: [0,1,2,3,4,5,6,7,8,9]
+#dataset_sampling_kwargs:
+#  concentration: 0.5
+algorithm_kwargs:
+    node_sample_percent: 0.7
+    distribute_init_parameters: True
+    node_random_selection: True
+    loss_client_selection: False
+graph_worker: false
+debug: false
+exp_name: "Fed_additional_rand_iid"
+...
