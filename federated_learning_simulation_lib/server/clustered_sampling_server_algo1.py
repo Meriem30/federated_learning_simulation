@@ -139,13 +139,8 @@ class ClusteredSamplingServerAlgo1(AggregationServer):
         In a real scenario, this should be reported by clients.
         """
         # Hack for simulation: try to see if we can access the dataset sizes via config
-        # or some shared object.
         # If not, return equal weights.
-
         # For now, return uniform to ensure code runs,
         # but add a TODO or try to read from config.
-        # In many FL sims, data distribution is passed in config
-
-        # If config has 'data_allocation', it might help.
         # returning uniform for now.
         return np.array([1.0 for _ in range(n_clients)])
