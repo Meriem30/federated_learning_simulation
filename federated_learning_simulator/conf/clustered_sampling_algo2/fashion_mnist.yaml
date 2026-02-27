@@ -1,6 +1,6 @@
 ---
-dataset_name: CIFAR10
-model_name: densenet40
+dataset_name: FashionMNIST
+model_name: LeNet5
 distributed_algorithm: clustered_sampling_algo2
 optimizer_name: SGD
 optimizer_kwargs:
@@ -9,7 +9,7 @@ optimizer_kwargs:
 learning_rate: 0.005
 worker_number: 65
 batch_size: 64
-round: 150
+round: 100
 #learning_rate_scheduler_name: CosineAnnealingLR
 learning_rate_scheduler_name: ReduceLROnPlateau
 learning_rate_scheduler_kwargs:
@@ -22,15 +22,17 @@ model_kwargs:
     keep_model_cache: false
 dataset_kwargs:
     dataset_type: Vision
-    dataset_sampling: dirichlet_split
+    dataset_sampling: iid
     classes: [0,1,2,3,4,5,6,7,8,9]
-dataset_sampling_kwargs:
-  concentration: 0.5
+#dataset_sampling_kwargs:
+#  concentration: 0.5
 algorithm_kwargs:
     distance_type: cosine
     node_sample_percent: 0.7
-    distribute_init_parameters: True
+    distribute_init_parameters: true
+    node_random_selection: false
+    loss_client_selection: false
 graph_worker: false
 debug: false
-exp_name: "algo2cosCIFR_new02SGD"
+exp_name: "algo2Fash_new02_SGD_add_iid"
 ...
