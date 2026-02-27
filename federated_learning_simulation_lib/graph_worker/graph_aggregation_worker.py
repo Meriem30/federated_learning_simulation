@@ -44,18 +44,18 @@ class GraphAggregationWorker(GraphWorker, AggregationWorker, ClientMixin):  # Ag
         if self.config.round > self.round_index:
             self._compute_worker_mi()
 
-    def _get_aggregated_model_from_path(self, round_idx: int) -> ModelParameter:
-        """
-        Load the aggregated model from a saved file, retrying until the file becomes available.
-        """
+    """def _get_aggregated_model_from_path(self, round_idx: int) -> ModelParameter:
+        
+        #Load the aggregated model from a saved file, retrying until the file becomes available.
+        
         aggregated_model_path = os.path.join(
             self.config.save_dir,
             "aggregated_model",
             f"round_{round_idx}.pk",  # Adjust round index as needed
         )
 
-        max_retries = 20  # Maximum number of retries
-        wait_time = 5  # Wait time in seconds between retries
+        max_retries = 40  # Maximum number of retries
+        wait_time = 10  # Wait time in seconds between retries
         previous_size = -1
         for attempt in range(max_retries):
             if os.path.exists(aggregated_model_path):
@@ -82,7 +82,133 @@ class GraphAggregationWorker(GraphWorker, AggregationWorker, ClientMixin):  # Ag
         # If the file is still not found after retries, raise an error
         raise FileNotFoundError(
             f"Round {self.round_index}. Aggregated model not found or corrupted at {aggregated_model_path} after {max_retries} retries."
+        )"""
+
+    def _get_aggregated_model_from_path(self, round_idx: int) -> ModelParameter:
+        """
+        Load the aggregated global model saved by the server for the given round.
+
+        In large FL deployments (75+ clients), the server may take significantly
+        longer to aggregate due to stragglers, partial participation, or I/O
+        contention. This method implements a robust polling strategy with:
+          - Exponential backoff to reduce filesystem pressure
+          - Single-check file stability (compare size across two polls)
+          - A hard timeout ceiling to avoid infinite blocking
+          - Actionable error reporting distinguishing timeout vs corruption
+        """
+        aggregated_model_path = os.path.join(
+            self.config.save_dir,
+            "aggregated_model",
+            f"round_{round_idx}.pk",
         )
+
+        # --- Timing parameters ---
+        # With 75+ clients, aggregation can take 3-5 minutes on slow hardware.
+        # We use exponential backoff: starts fast (catches normal cases early),
+        # slows down (reduces FS polling pressure when server is genuinely slow).
+        initial_wait = 5  # seconds  first poll interval
+        max_wait_per_retry = 30  # seconds  cap on individual wait
+        backoff_factor = 1.3  # exponential growth factor
+        hard_timeout = 1200  # seconds  20 min absolute ceiling before giving up
+
+        start_time = time.time()
+        wait_time = initial_wait
+        attempt = 0
+        previous_size = None  # None = "not seen yet", distinct from 0
+
+        log_info(
+            "Round %s. Waiting for aggregated model at: %s (timeout: %ds)",
+            round_idx, aggregated_model_path, hard_timeout
+        )
+
+        while True:
+            elapsed = time.time() - start_time
+
+            # --- Hard timeout guard ---
+            if elapsed > hard_timeout:
+                raise FileNotFoundError(
+                    f"Round {round_idx}. Aggregated model not available at "
+                    f"{aggregated_model_path} after {elapsed:.0f}s ({attempt} attempts). "
+                    f"Possible causes: server skipped this round, aggregation failed, "
+                    f"or filesystem latency. Check server logs for round {round_idx}."
+                )
+
+            attempt += 1
+
+            if os.path.exists(aggregated_model_path):
+                try:
+                    current_size = os.path.getsize(aggregated_model_path)
+                except OSError as e:
+                    log_warning(
+                        "Round %s. Could not stat file (attempt %d, elapsed %.0fs): %s. Retrying...",
+                        round_idx, attempt, elapsed, e
+                    )
+                    current_size = None
+
+                if current_size is not None and current_size > 0:
+                    if current_size == previous_size:
+                        # File size stable across two consecutive polls → safe to read
+                        try:
+                            with open(aggregated_model_path, "rb") as f:
+                                model_data = pickle.load(f)
+                            log_info(
+                                "Round %s. Successfully loaded aggregated model "
+                                "(attempt %d, elapsed %.1fs, size %d bytes).",
+                                round_idx, attempt, elapsed, current_size
+                            )
+                            return model_data
+
+                        except (pickle.UnpicklingError, EOFError) as e:
+                            log_warning(
+                                "Round %s. File exists but is corrupted (attempt %d): %s. "
+                                "Waiting for server to rewrite...",
+                                round_idx, attempt, e
+                            )
+                            # Reset stability tracking  file may be mid-rewrite
+                            previous_size = None
+
+                        except Exception as e:
+                            log_warning(
+                                "Round %s. Unexpected read error (attempt %d): %s.",
+                                round_idx, attempt, e
+                            )
+                            previous_size = None
+
+                    else:
+                        # File is still being written
+                        log_warning(
+                            "Round %s. File size changed: %s → %s bytes (attempt %d, elapsed %.0fs). "
+                            "Server still writing  waiting...",
+                            round_idx, previous_size, current_size, attempt, elapsed
+                        )
+                        previous_size = current_size
+
+                else:
+                    # File exists but is empty  server started writing, not done yet
+                    log_warning(
+                        "Round %s. File exists but is empty (attempt %d, elapsed %.0fs). Waiting...",
+                        round_idx, attempt, elapsed
+                    )
+                    previous_size = current_size  # track 0 → nonzero transition
+
+            else:
+                # File not yet created  server hasn't started aggregation yet
+                if attempt % 5 == 1:  # log every 5 attempts to reduce noise
+                    log_warning(
+                        "Round %s. Aggregated model not found yet (attempt %d, elapsed %.0fs). "
+                        "Waiting for server aggregation...",
+                        round_idx, attempt, elapsed
+                    )
+                previous_size = None  # reset if file disappeared (edge case: server rewrites)
+
+            # --- Exponential backoff with cap ---
+            actual_wait = min(wait_time, max_wait_per_retry)
+            log_info(
+                "Round %s. Next poll in %.1fs (attempt %d, elapsed %.0fs).",
+                round_idx, actual_wait, attempt, elapsed
+            )
+            time.sleep(actual_wait)
+            wait_time = min(wait_time * backoff_factor, max_wait_per_retry)
 
     def _get_cached_model(self) -> ModelParameter:
         """
@@ -94,10 +220,10 @@ class GraphAggregationWorker(GraphWorker, AggregationWorker, ClientMixin):  # Ag
         log_debug("************************* worker model", model)
         return model
 
-    def _get_test_data_subset(self, ratio: float = 0.5):
-        """
-        Extract a subset of the test dataset.
-        """
+    """def _get_test_data_subset(self, ratio: float = 0.5):
+        
+        #Extract a subset of the test dataset.
+        
         assert 0 < ratio <= 1, "Ratio must be between 0 and 1."
         if not self.trainer.dataset_collection.has_dataset(MachineLearningPhase.Validation):
             raise ValueError("Training dataset is not available.")
@@ -139,6 +265,108 @@ class GraphAggregationWorker(GraphWorker, AggregationWorker, ClientMixin):  # Ag
         #subset = torch.utils.data.Subset(test_dataset, sampled_indices)
 
         log_warning("Extracted test data subset of size: %d", len(sampled_indices))
+        return original_indices, sampled_indices"""
+
+    def _get_test_data_subset(self, ratio: float = 0.5):
+        """
+        Extract a subset of the validation dataset for MI estimation.
+
+        Handles edge cases arising from data starvation in large FL setups
+        (many clients → few samples per client). Flags statistically unreliable
+        estimates when the available data falls below a research-grounded minimum.
+
+        Args:
+            ratio: Fraction of local validation data to use for MI estimation.
+                   Must be in (0, 1].
+
+        Returns:
+            original_indices: Full list of local validation indices (for restoration).
+            sampled_indices:  Numpy array of sampled indices for MI computation.
+        """
+        assert 0 < ratio <= 1, "Ratio must be between 0 and 1."
+
+        if not self.trainer.dataset_collection.has_dataset(MachineLearningPhase.Validation):
+            raise ValueError("Validation dataset is not available for this worker.")
+
+        test_dataset = self.trainer.dataset_collection.get_dataset(MachineLearningPhase.Validation)
+
+        if not hasattr(test_dataset, "__getitem__"):
+            raise TypeError(f"Dataset {type(test_dataset)} does not support indexing.")
+
+        original_indices = list(range(len(test_dataset)))
+        total = len(original_indices)
+
+        log_warning("Total available local validation samples: %d", total)
+
+        if total == 0:
+            raise RuntimeError(
+                "Worker has 0 validation samples  cannot compute MI. "
+                "Consider reducing the number of clients or increasing the dataset size."
+            )
+
+        # --- Batch size alignment ---
+        batch_size = self.trainer.hyper_parameter.batch_size
+        log_warning("Batch size from trainer: %d", batch_size)
+
+        # --- Research-grounded reliability floor ---
+        # Minimum reliable sample count: at least 5 samples per class AND one full batch.
+        # Below this threshold, the MI estimate has high variance and should be flagged.
+        try:
+            num_classes = len(self.trainer.dataset_util.get_label_names())
+        except Exception:
+            num_classes = 2  # conservative fallback
+        min_reliable = max(batch_size, 5 * num_classes)
+
+        # --- Compute desired subset size ---
+        desired = int(ratio * total)
+
+        # Align down to nearest batch boundary
+        aligned = (desired // batch_size) * batch_size
+
+        if aligned < batch_size:
+            # Not even one full batch from ratio  try one batch as fallback
+            aligned = batch_size
+            log_warning(
+                "Desired subset (%d) is smaller than one batch (%d) after alignment. "
+                "Falling back to one batch.",
+                desired, batch_size
+            )
+        elif aligned != desired:
+            log_warning(
+                "Subset size adjusted from %d to %d to align with batch_size %d.",
+                desired, aligned, batch_size
+            )
+
+        # --- Handle data starvation: requested subset exceeds available data ---
+        if aligned >= total:
+            log_warning(
+                "Requested subset size (%d) >= available samples (%d). "
+                "Using all available samples without random sampling.",
+                aligned, total
+            )
+            sampled_indices = np.array(original_indices)
+        else:
+            sampled_indices = np.random.choice(original_indices, size=aligned, replace=False)
+
+        # --- Reliability flag ---
+        # Stored on self so _compute_worker_mi can take downstream decisions
+        # (e.g. skip aggregation weight update, carry forward last round's MI).
+        self._mi_estimate_reliable = len(sampled_indices) >= min_reliable
+        if not self._mi_estimate_reliable:
+            log_warning(
+                "MI estimate reliability: LOW  only %d samples available, "
+                "recommended minimum is %d (%d classes × 5, or 1 batch). "
+                "MI value will be computed but should be treated with caution.",
+                len(sampled_indices), min_reliable, num_classes
+            )
+        else:
+            log_warning(
+                "MI estimate reliability: OK  %d samples selected "
+                "(minimum recommended: %d).",
+                len(sampled_indices), min_reliable
+            )
+
+        log_warning("Final subset size for MI estimation: %d", len(sampled_indices))
         return original_indices, sampled_indices
 
     def _get_model_results(self, data: torch.utils.data.Dataset, model: ModelParameter) -> np.ndarray:
