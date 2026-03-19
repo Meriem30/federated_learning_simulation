@@ -30,12 +30,16 @@ class GraphFedAVGAlgorithm(AggregationAlgorithm):
         self._enable_clustering: bool = True
         self._enum_converted: bool = False
         self._adjacency_matrix = None
+
         # ADDED to handle svs
         self._assign_egtg_sv: bool = True
 
     @property
     def adjacency_sc_matrix(self):
         return self._adjacency_matrix
+
+    def is_ablation_no_clustering(self) -> bool:
+        return self.config.algorithm_kwargs.get("ablation_no_clustering", False)
 
     def process_worker_data(
             self,
@@ -112,20 +116,35 @@ class GraphFedAVGAlgorithm(AggregationAlgorithm):
             self.__total_weights = {}
         # ADDED to handle spectral_clustering
         clustering_results = None
-        if self._enable_clustering and self.config.round > 1:
+        # ADDED to handle ablation no clustering
+        _run_clustering = self._enable_clustering and not self.is_ablation_no_clustering()
+        if _run_clustering and self.config.round > 1:
             self.__client_states_array = self._create_workers_matrix(self._all_worker_data)
             # call the appropriate class,function passing the matrix of data points (client_states)
             clustering_results, self._adjacency_matrix = self._perform_clustering(self.__client_states_array)
+        elif self.is_ablation_no_clustering() and self.config.round > 1:
+            # still build MI array so the server can rank clients by their MI values
+            # do not perform clustering and leave adj_matx None
+            self.__client_states_array = self._create_workers_matrix(self._all_worker_data)
+            log_info("[no clustering ablation mode] MI matrix build. Spectral Clustering skipped")
         other_data: dict[str, Any] = {}
         if self.aggregate_loss:
             # if true, compute aggregated loss values
             other_data |= self.__aggregate_loss(self._all_worker_data)
         # ADDED to handle graphs
-        if self._assign_family and self.config.round != 1:
+        # ADDED to handle ablation no clustering
+        _run_family = self._assign_family and not self.is_ablation_no_clustering()
+        if _run_family and self.config.round != 1:
             log_info("update family is enabled for all workers")
             #log_info("this is other data before calling _update_family_assignment function %s", self._all_worker_data)
             other_data |= self.__update_family_assignment(self._all_worker_data, clustering_results)
             log_debug("family assignments updated by graph fed_avg algorithm")
+        elif self.is_ablation_no_clustering():
+            log_info("[no clustering ablation mode] family assignment skipped")
+            # since we skipped __update_family_assignment, we have to pop node_state manually here
+            # otherwise _check_and_reduce_other_data raises different values on keys: node_state value
+            for worker_data in self._all_worker_data.values():
+                worker_data.other_data.pop("node_state", None)
         # ensure consistency
         other_data |= self.__check_and_reduce_other_data(self._all_worker_data)
         # return the aggregated params and other data

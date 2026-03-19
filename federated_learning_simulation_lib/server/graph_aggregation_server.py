@@ -72,6 +72,10 @@ class GraphAggregationServer(Server, PerformanceMixin, RoundSelectionMixin):
         return len(self.get_selected_workers())
 
     def get_selected_workers(self) -> set[int]:
+        if self.round_index == 1:
+            return set(range(self.config.worker_number))
+        if self._is_ablation_no_clustering():
+            return self.select_worker_by_mi_ranking()
         if self._families and any(self._families.values()) and self.round_index != 1:
             selected_workers  = self._select_workers_from_clusters(self._families)
             return selected_workers
@@ -105,6 +109,32 @@ class GraphAggregationServer(Server, PerformanceMixin, RoundSelectionMixin):
     def distribute_init_parameters(self) -> bool:
        return self.config.algorithm_kwargs.get("distribute_init_parameters", True )
 
+    #---
+    # ablation helpers
+    #---
+    def _is_ablation_no_clustering(self) -> bool:
+        return  self.config.ablation_no_clustering
+
+    def _get_selected_worker_num(self):
+        return max(1, int(self.config.algorithm_kwargs.get("node_sample_percent", 1) * self.worker_number))
+
+    def select_worker_by_mi_ranking(self) -> set[int]:
+        target_num = self._get_selected_worker_num()
+        mi_scores = {
+            worker_id : self._graph_client_states[worker_id].mi
+            for worker_id in range(self.config.worker_number)
+        }
+        sorted_workers = sorted(
+            mi_scores.keys(),
+            key=lambda worker_id: mi_scores[worker_id],
+            reverse=True,
+        )
+        selected = set(sorted_workers[: target_num])
+        log_info(
+            "[ablation_no_clustering] MI-ranking selected %d/%d workers: %s",
+            len(selected), self.worker_number, sorted(selected),
+        )
+        return selected
     def _before_start(self) -> None:
         """
             send initial model params to workers
@@ -220,8 +250,11 @@ class GraphAggregationServer(Server, PerformanceMixin, RoundSelectionMixin):
                         self._network.add_edge(i, j, weight=weight)
             #self._save_and_print_graph()
             #print("Graph updated with new nodes and edges.")
+        elif self._is_ablation_no_clustering():
+            log_info("[no clustering ablation mode]:  adj matrix is None")
         else:
             log_warning("adjacency_matrix is %s ", adjacency_matrix)
+
 
     def _save_and_print_graph(self):
         """

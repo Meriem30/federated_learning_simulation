@@ -28,6 +28,7 @@ dataset_kwargs:
 dataset_sampling_kwargs:
   concentration: 0.5
 algorithm_kwargs:
+    ablation_no_clustering: true
     distribute_init_parameters: True
     node_sample_percent: 0.7
     node_random_selection: false
@@ -39,5 +40,5 @@ threshold: 0.0
 laplacian_type: RandomWalk
 similarity_function: Gaussian
 debug: false
-exp_name: "c510"
+exp_name: "ablation_no_clustering"
 ...

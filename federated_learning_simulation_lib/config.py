@@ -41,6 +41,7 @@ class DistributedTrainingConfig(Config):
         self.threshold: float = 0.1
         self.similarity_function = None
         self.laplacian_type = None
+        self.ablation_no_clustering: bool = False
 
     def load_config_and_process(self, conf: Any) -> None:
         # load the config
