@@ -72,8 +72,8 @@ class GraphAggregationServer(Server, PerformanceMixin, RoundSelectionMixin):
         return len(self.get_selected_workers())
 
     def get_selected_workers(self) -> set[int]:
-        if self.round_index == 1:
-            return set(range(self.config.worker_number))
+        if self.round_index == 0:
+            return set(range(self.worker_number))
         if self._is_ablation_no_clustering():
             return self.select_worker_by_mi_ranking()
         if self._families and any(self._families.values()) and self.round_index != 1:
@@ -369,8 +369,12 @@ class GraphAggregationServer(Server, PerformanceMixin, RoundSelectionMixin):
             log_debug("here is after calling _send_result function")
             #log_info("************************************  adj matrix from server \n %s ", self.__algorithm.adjacency_sc_matrix)
 
-            log_info("************************************  adj matrix shape & type %s \n %s ",
-                     self.__algorithm.adjacency_sc_matrix.shape, type(self.__algorithm.adjacency_sc_matrix))
+            _adj = self.__algorithm.adjacency_sc_matrix
+            if _adj is not None:
+                log_info("************************************  adj matrix shape & type %s \n %s ",
+                         _adj.shape, type(_adj))
+            else:
+                log_info("[ablation_no_clustering] adjacency matrix is None  clustering was skipped.")
             # clear the set of worker flag
             self.__worker_flag.clear()
 
