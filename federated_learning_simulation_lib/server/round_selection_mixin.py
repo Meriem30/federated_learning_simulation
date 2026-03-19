@@ -171,3 +171,93 @@ class RoundSelectionMixin(AggregationServerProtocol, WorkerProtocol):
         self.selection_result[self.round_index] = selected_workers
 
         return selected_workers
+
+    def _select_workers_randomly_from_clusters(self, families: dict) -> set[int]:
+        """
+        Ablation B  'no-smart-selection' variant.
+
+        Spectral clustering and family assignment run exactly as in full GRAIL-FL.
+        The only thing replaced is the within-cluster selection policy:
+        instead of centroid + nearest-neighbour prioritisation, every cluster
+        contributes a random subset of its members, with the number of slots
+        allocated proportionally to cluster size.
+
+        This isolates the contribution of the centroid-aware selection strategy.
+
+        Args:
+            families: dict  {family_id: [worker_id, ...]}
+                      Same structure passed to _select_workers_from_clusters().
+
+        Returns:
+            set[int]  Worker IDs selected for this round.
+        """
+        # ── 0. Early exits ────────────────────────────────────────────────────
+        if self.round_index == 1:
+            return set(range(self.worker_number))
+        if self.round_index in self.selection_result:
+            return self.selection_result[self.round_index]
+
+        # ── 1. Resolve selection budget (same logic as the full method) ───────
+        sample_percent: float = self.config.algorithm_kwargs.get("node_sample_percent", 1.0)
+        random_client_number: int | None = self.config.algorithm_kwargs.get("random_client_number", None)
+        total_clients: int = self.worker_number
+
+        if random_client_number is not None:
+            budget = min(random_client_number, total_clients)
+        else:
+            budget = int(sample_percent * total_clients)
+        budget = max(1, budget)
+
+        # ── 2. Filter to non-empty clusters ───────────────────────────────────
+        active_families = {fid: members for fid, members in families.items() if members}
+        if not active_families:
+            # Degenerate: no cluster has members yet  select all
+            return set(range(self.worker_number))
+
+        n_families = len(active_families)
+
+        # ── 3. Proportional allocation across clusters ─────────────────────────
+        # Each cluster gets slots proportional to its share of the total
+        # population, rounded down.  Leftover slots are distributed one-by-one
+        # to the clusters with the largest fractional remainders (Hamilton/
+        # largest-remainder method) so that the sum always equals `budget`.
+        family_sizes = {fid: len(members) for fid, members in active_families.items()}
+        total_population = sum(family_sizes.values())
+
+        # Exact (real-valued) quota for each family
+        exact_quotas = {
+            fid: budget * (size / total_population)
+            for fid, size in family_sizes.items()
+        }
+
+        # Floor allocation  each cluster gets at least 1 slot if budget allows
+        floor_alloc = {fid: max(1, math.floor(q)) for fid, q in exact_quotas.items()}
+        allocated = sum(floor_alloc.values())
+
+        # Distribute leftover slots by largest fractional remainder
+        remainders = sorted(
+            active_families.keys(),
+            key=lambda fid: exact_quotas[fid] - math.floor(exact_quotas[fid]),
+            reverse=True,
+        )
+        leftover = budget - allocated
+        for fid in remainders:
+            if leftover <= 0:
+                break
+            floor_alloc[fid] += 1
+            leftover -= 1
+
+        # ── 4. Random draw from each cluster ──────────────────────────────────
+        selected_workers: set[int] = set()
+        for fid, members in active_families.items():
+            slots = floor_alloc[fid]
+            # Never ask for more than the cluster actually has
+            draw_n = min(slots, len(members))
+            chosen = random.sample(sorted(members), draw_n)
+            selected_workers.update(chosen)
+
+        # ── 5. Cache and return ───────────────────────────────────────────────
+        # If rounding left us short (all clusters smaller than their allocation),
+        # the result may be < budget  that is correct and expected.
+        self.selection_result[self.round_index] = selected_workers
+        return selected_workers

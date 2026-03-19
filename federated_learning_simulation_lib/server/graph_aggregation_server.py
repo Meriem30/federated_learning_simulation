@@ -50,6 +50,10 @@ class GraphAggregationServer(Server, PerformanceMixin, RoundSelectionMixin):
         self._families = {i: [] for i in range(self.config.family_number)} if self.config.family_number != 0 else {}
         self._initialize_network()
         self.__root_graph_folder = os.path.join("graph_spectral_clustering_images", datetime.now().strftime("%Y_%m_%d_%H-%M-%S"))
+        assert not (
+                self.config.algorithm_kwargs.get("ablation_no_clustering", False)
+                and self.config.algorithm_kwargs.get("ablation_random_selection", False)
+        ), "ablation_no_clustering and ablation_random_selection are mutually exclusive"
 
     @property
     def early_stop(self) -> bool:
@@ -76,6 +80,17 @@ class GraphAggregationServer(Server, PerformanceMixin, RoundSelectionMixin):
             return set(range(self.worker_number))
         if self._is_ablation_no_clustering():
             return self.select_worker_by_mi_ranking()
+        if self._is_ablation_random_within_cluster_selection():
+            if self._families and any(self._families.values()):
+                return self._select_workers_randomly_from_clusters(self._families)
+            # Families not yet populated (round 2 before first clustering completes):
+            # fall back to full participation so the round is not lost
+            log_warning(
+                "[ablation_random_selection] families not yet available at round %s "
+                " using full participation as fallback.",
+                self.round_index,
+            )
+            return set(range(self.worker_number))
         if self._families and any(self._families.values()) and self.round_index != 1:
             selected_workers  = self._select_workers_from_clusters(self._families)
             return selected_workers
@@ -114,6 +129,9 @@ class GraphAggregationServer(Server, PerformanceMixin, RoundSelectionMixin):
     #---
     def _is_ablation_no_clustering(self) -> bool:
         return  self.config.ablation_no_clustering
+
+    def _is_ablation_random_within_cluster_selection(self) -> bool:
+        return self.config.ablation_random_within_cluster_selection
 
     def _get_selected_worker_num(self):
         return max(1, int(self.config.algorithm_kwargs.get("node_sample_percent", 1) * self.worker_number))
