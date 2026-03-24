@@ -8,6 +8,8 @@ class ClientState:
         self._client_id = worker_id
         self._mi: float = 0.0
         self._family: int = 0
+        self.training_ms: float = 0.0
+        self.mi_computation_ms: float = 0.0
 
     def initialize_state(self, families: int) -> None:
         self._family = random.choice(list(range(1, families)))
