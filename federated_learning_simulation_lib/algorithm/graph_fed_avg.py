@@ -1,4 +1,5 @@
 import random
+import time
 from typing import Any, MutableMapping, Tuple
 import numpy as np
 import torch
@@ -33,10 +34,19 @@ class GraphFedAVGAlgorithm(AggregationAlgorithm):
 
         # ADDED to handle svs
         self._assign_egtg_sv: bool = True
+        self._last_round_timing: dict[str, float] = {
+            "aggregation_ms": 0.0,
+            "mi_matrix_build_ms": 0.0,
+            "spectral_clustering_ms": 0.0,
+        }
 
     @property
     def adjacency_sc_matrix(self):
         return self._adjacency_matrix
+
+    @property
+    def last_round_timing(self) -> dict[str, float]:
+        return self._last_round_timing
 
     def is_ablation_no_clustering(self) -> bool:
         return self.config.algorithm_kwargs.get("ablation_no_clustering", False)
@@ -98,6 +108,12 @@ class GraphFedAVGAlgorithm(AggregationAlgorithm):
         return parameter / total_weight
 
     def aggregate_worker_data(self) -> ParameterMessage:
+        self._last_round_timing = {
+            "aggregation_ms": 0.0,
+            "mi_matrix_build_ms": 0.0,
+            "spectral_clustering_ms": 0.0,
+        }
+        _agg_start = time.perf_counter()
         if not self.accumulate:
             # if not required, directly aggregate
             parameter = self.aggregate_parameter(self._all_worker_data)
@@ -114,18 +130,27 @@ class GraphFedAVGAlgorithm(AggregationAlgorithm):
                 )
                 assert not parameter[k].isnan().any().cpu()
             self.__total_weights = {}
+        self._last_round_timing["aggregation_ms"] = (time.perf_counter() - _agg_start) * 1_000.0
         # ADDED to handle spectral_clustering
         clustering_results = None
         # ADDED to handle ablation no clustering
         _run_clustering = self._enable_clustering and not self.is_ablation_no_clustering()
         if _run_clustering and self.config.round > 1:
+            # WRAP _create_workers_matrix call:
+            _matrix_start = time.perf_counter()
             self.__client_states_array = self._create_workers_matrix(self._all_worker_data)
-            # call the appropriate class,function passing the matrix of data points (client_states)
+            self._last_round_timing["mi_matrix_build_ms"] = (time.perf_counter() - _matrix_start) * 1_000.0
+
+            # WRAP _perform_clustering call:
+            _clust_start = time.perf_counter()
             clustering_results, self._adjacency_matrix = self._perform_clustering(self.__client_states_array)
+            self._last_round_timing["spectral_clustering_ms"] = (time.perf_counter() - _clust_start) * 1_000.0
         elif self.is_ablation_no_clustering() and self.config.round > 1:
             # still build MI array so the server can rank clients by their MI values
             # do not perform clustering and leave adj_matx None
+            _matrix_start = time.perf_counter()
             self.__client_states_array = self._create_workers_matrix(self._all_worker_data)
+            self._last_round_timing["mi_matrix_build_ms"] = (time.perf_counter() - _matrix_start) * 1_000.0
             log_info("[no clustering ablation mode] MI matrix build. Spectral Clustering skipped")
         other_data: dict[str, Any] = {}
         if self.aggregate_loss:
