@@ -23,6 +23,7 @@ from .round_selection_mixin import RoundSelectionMixin
 from .server import Server
 from federated_learning_simulation_lib.graph_worker.client_state import ClientState
 from ..algorithm.graph_fed_avg import GraphFedAVGAlgorithm
+from federated_learning_simulation_lib.algorithm.spectral_clustering import TimingRecorder, RoundTimingRecord, ClientTimingSummary, phase_timer
 
 
 class GraphAggregationServer(Server, PerformanceMixin, RoundSelectionMixin):
@@ -54,6 +55,12 @@ class GraphAggregationServer(Server, PerformanceMixin, RoundSelectionMixin):
                 self.config.algorithm_kwargs.get("ablation_no_clustering", False)
                 and self.config.algorithm_kwargs.get("ablation_random_selection", False)
         ), "ablation_no_clustering and ablation_random_selection are mutually exclusive"
+        self._timing_recorder = TimingRecorder(
+            save_dir=self.config.save_dir,
+            n_workers_total=self.config.worker_number,
+        )
+        self._round_client_training_ms: dict[int, float] = {}
+        self._round_client_mi_ms: dict[int, float] = {}
 
     @property
     def early_stop(self) -> bool:
@@ -362,6 +369,8 @@ class GraphAggregationServer(Server, PerformanceMixin, RoundSelectionMixin):
             log_warning("server has extracted the worker %s state", worker_id)
             log_warning(repr(client_state))
             self._graph_client_states[worker_id] = client_state
+            self._round_client_training_ms[worker_id] = getattr(client_state, "training_ms", 0.0)
+            self._round_client_mi_ms[worker_id] = getattr(client_state, "mi_computation_ms", 0.0)
             self._network.nodes[worker_id]['state'] = client_state
             log_info("server graph network has been updated with the new worker %s state", worker_id)
         # process the worker data using the aggregation algorithm
@@ -490,7 +499,30 @@ class GraphAggregationServer(Server, PerformanceMixin, RoundSelectionMixin):
         and writes a round manifest so workers can detect skip/participate status
         without polling forever.
         """
-        self._update_network()
+        with phase_timer() as _graph_timer:
+            self._update_network()
+
+        _algo_timing = self.__algorithm.last_round_timing
+        _variant = (
+            "ablation_no_clustering" if self._is_ablation_no_clustering()
+            else "ablation_random_selection" if self._is_ablation_random_within_cluster_selection()
+            else "grail_fl"
+        )
+        _rec = RoundTimingRecord(
+            round=self._round_index - 1,
+            n_workers_selected=len(self.get_selected_workers()),
+            selected_worker_ids=sorted(self.get_selected_workers()),
+            variant=_variant,
+            mi_matrix_build_ms=_algo_timing.get("mi_matrix_build_ms", 0.0),
+            spectral_clustering_ms=_algo_timing.get("spectral_clustering_ms", 0.0),
+            aggregation_ms=_algo_timing.get("aggregation_ms", 0.0),
+            graph_update_ms=_graph_timer.elapsed_ms,
+            training=ClientTimingSummary.from_worker_dict(self._round_client_training_ms),
+            mi_computation=ClientTimingSummary.from_worker_dict(self._round_client_mi_ms),
+        )
+        self._timing_recorder.record(_rec)
+        self._round_client_training_ms = {}
+        self._round_client_mi_ms = {}
         if not result.in_round:
             self._round_index += 1
         self.__algorithm.clear_worker_data()

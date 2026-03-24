@@ -43,6 +43,8 @@ class DistributedTrainingConfig(Config):
         self.laplacian_type = None
         self.ablation_no_clustering: bool = False
         self.ablation_random_within_cluster_selection: bool = False
+        self.num_mi_trials: int = 1
+        self.mi_update_interval: int = 1
 
     def load_config_and_process(self, conf: Any) -> None:
         # load the config
