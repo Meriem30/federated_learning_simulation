@@ -34,17 +34,67 @@ class GraphAggregationWorker(GraphWorker, AggregationWorker, ClientMixin):  # Ag
         self.__global_mi_evaluator: Inferencer
         self._was_selected_this_round: bool = True  # default True  assume selected until told otherwise
         self.__mi: float = 0.0
+        # ── Timing (ms) ─────────────────────────────────────────────────────
+        self._training_start_time: float = 0.0  # set in _before_training
+        self._training_ms: float = 0.0  # set in _after_training
+        self._mi_computation_ms: float = 0.0  # set in _after_training
+        #log_warning("[SENSITIVITY_STUDY] num_mi_trials %s", self.config.num_mi_trials)
+        #log_warning("[SENSITIVITY_STUDY] mi_update_interval %s", self.config.mi_update_interval)
 
+    def num_mi_trials(self) -> int:
+        return self.config.num_mi_trials
+
+    def mi_update_interval(self) -> int:
+        return self.config.mi_update_interval
+
+    def _before_training(self) -> None:
+        """
+        Hook called by the parent executor just before local SGD starts.
+        Records the wall-clock start time so _after_training can compute
+        the total training duration for this round.
+        """
+        self._training_start_time = time.perf_counter()
+        # Call parent hook if it exists
+        if hasattr(super(), "_before_training"):
+            super()._before_training()
 
     def _after_training(self) -> None:
         """
             super(): save the trainer's hyperparams to a file after training
             for graph_aggregation_worker
         """
+        # ── 1. Capture training wall-clock time ─────────────────────────────
+        # _training_start_time is 0.0 if _before_training was never called
+        # (e.g., worker was not selected).  Guard against that.
+        if self._training_start_time > 0.0:
+            self._training_ms = (time.perf_counter() - self._training_start_time) * 1_000.0
+            self._training_start_time = 0.0  # reset for next round
+        else:
+            self._training_ms = 0.0
         self._was_selected_this_round = True
         AggregationWorker._after_training(self)
+        # ── 2. Time MI computation ───────────────────────────────────────────
+        mi_interval = self.mi_update_interval()
+        _should_update_mi = (
+                self.round_index % mi_interval == 0
+                or self.round_index == 1
+                or self._state.mi == 0.0  # safety net: never reuse a zero that was never computed
+        )
         if self.config.round > self.round_index and getattr(self, '_was_selected_this_round', True):
-            self._compute_worker_mi()
+            if _should_update_mi:
+                _mi_start = time.perf_counter()
+                self._compute_worker_mi()
+                self._mi_computation_ms = (time.perf_counter() - _mi_start) * 1_000.0
+                log_info("Worker %s MI updated at round %s (interval=%s)",
+                         self.worker_id, self.round_index, mi_interval)
+            else:
+                # reuse cached MI from previous update round  already stored in self._state.mi
+                self.__mi = self._state.mi if self._state.mi is not None else 0.0
+                self._mi_computation_ms = 0.0
+                log_info("Worker %s MI reused (round %s, interval=%s, cached=%.4f)",
+                         self.worker_id, self.round_index, mi_interval, self.__mi)
+        else:
+            self._mi_computation_ms = 0.0
 
     """def _get_aggregated_model_from_path(self, round_idx: int) -> ModelParameter:
         
@@ -577,7 +627,7 @@ class GraphAggregationWorker(GraphWorker, AggregationWorker, ClientMixin):  # Ag
         log_info("Computing mutual information (MI)...")
 
         ############ Start MI estimation ##########
-        num_trials = 1
+        num_trials = self.num_mi_trials()
         estimated_values = np.zeros(num_trials)
         trainer_inferencer = self.trainer.get_inferencer(
             phase=MachineLearningPhase.Validation,
@@ -853,6 +903,18 @@ class GraphAggregationWorker(GraphWorker, AggregationWorker, ClientMixin):  # Ag
         if self._communicate_node_state:
             other_data["node_state"] = (
                 self._get_client_state(self.worker_id)
+            )
+            # ── Attach per-round timing to the client state ──────────────────
+            # These fields are read by the server in _process_worker_data()
+            # to build the per-round timing record.
+            node_state = other_data["node_state"]
+            if hasattr(node_state, "training_ms"):
+                node_state.training_ms = self._training_ms
+            if hasattr(node_state, "mi_computation_ms"):
+                node_state.mi_computation_ms = self._mi_computation_ms
+            log_debug(
+                "worker %s timing: training=%.1f ms  MI=%.1f ms",
+                self.worker_id, self._training_ms, self._mi_computation_ms,
             )
             log_debug("worker %s node_state added to other data: %s", self.worker_id, other_data)
             #log_info("worker %s mi in graph_aggregation_worker %s", self.worker_id, self.__mi)
