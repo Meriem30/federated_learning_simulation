@@ -30,6 +30,7 @@ class SpectralClustering:
                 - 'threshold': float, for epsilon-neighborhood graphs.
                 - 'similarity_function': SimilarityType enum.
                 - 'laplacian_type': LaplacianType enum.
+                - 'num_clusters': int number of families, for KNN graphs.'
     """
         self.config = config
         self.adjacency_matrix = None
@@ -50,6 +51,7 @@ class SpectralClustering:
 
         # Step 2: Construct the graph
         log_info(f"Graph construction started with type: {self.config['graph_type'].name}")
+        log_info(f"Number of neighbors: {self.config['num_neighbors']}")
         graph_params = {
             'num_neighbors': self.config.get('num_neighbors', 5),
             'threshold': self.config.get('threshold', 0.5),
@@ -73,6 +75,7 @@ class SpectralClustering:
         # Use the `spectral_decomposition` method which returns only eigenvectors.
         log_info("Performing spectral decomposition to get top eigenvectors.")
         top_k_eigenvectors = laplacian.spectral_decomposition(self.config['num_clusters'])
+        log_info(f"number of clusters (families) to construct {self.config['num_clusters']}")
         log_info(f"Obtained eigenvectors matrix with shape: {top_k_eigenvectors.shape}")
 
         # Step 5: Apply KMeans clustering on the eigenvectors
