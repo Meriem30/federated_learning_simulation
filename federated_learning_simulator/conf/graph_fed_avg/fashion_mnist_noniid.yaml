@@ -7,9 +7,9 @@ optimizer_kwargs:
   betas: [0.9, 0.99]
   eps: 1e-8
   weight_decay: 0.0005
-worker_number: 10
+worker_number: 50
 batch_size: 64
-round: 100
+round: 150
 #learning_rate_scheduler_name: CosineAnnealingLR
 learning_rate_scheduler_name: ReduceLROnPlateau
 learning_rate_scheduler_kwargs:
@@ -23,11 +23,13 @@ model_kwargs:
     keep_model_cache: false
 dataset_kwargs:
     dataset_type: Vision
-    dataset_sampling: iid
+    dataset_sampling: dirichlet_split
     classes: [0,1,2,3,4,5,6,7,8,9]
-#dataset_sampling_kwargs:
-#  concentration: 0.5
+dataset_sampling_kwargs:
+  concentration: 0.5
 algorithm_kwargs:
+    ablation_random_within_cluster_selection: false
+    ablation_no_clustering: false
     distribute_init_parameters: True
     node_sample_percent: 0.7
     node_random_selection: false
@@ -35,9 +37,11 @@ graph_worker: true
 family_number: 5
 graph_type: KNN
 num_neighbor: 2
+num_mi_trials: 1
+mi_update_interval: 1
 threshold: 0.0
 laplacian_type: RandomWalk
 similarity_function: Gaussian
 debug: false
-exp_name: "graph_grail_fmn_iid"
+exp_name: "graph_grail_f5mn_nniid"
 ...

@@ -28,15 +28,17 @@ dataset_kwargs:
 dataset_sampling_kwargs:
   concentration: 0.5
 algorithm_kwargs:
-    ablation_random_within_cluster_selection: true
+    ablation_random_within_cluster_selection: false
     ablation_no_clustering: false
     distribute_init_parameters: True
     node_sample_percent: 0.7
     node_random_selection: false
 graph_worker: true
-family_number: 4
+family_number: 5
 graph_type: KNN
 num_neighbor: 2
+num_mi_trials: 1
+mi_update_interval: 1
 threshold: 0.0
 laplacian_type: RandomWalk
 similarity_function: Gaussian
