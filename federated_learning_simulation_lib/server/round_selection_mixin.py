@@ -266,5 +266,5 @@ class RoundSelectionMixin(AggregationServerProtocol, WorkerProtocol):
         # ── 5. Cache and return ───────────────────────────────────────────────
         # If rounding left us short (all clusters smaller than their allocation),
         # the result may be < budget  that is correct and expected.
-        self.selection_result[self.round_index] = selected_workers
+        self.selection_result[cache_key] = selected_workers
         return selected_workers

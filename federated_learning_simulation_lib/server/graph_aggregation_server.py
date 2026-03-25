@@ -85,21 +85,21 @@ class GraphAggregationServer(Server, PerformanceMixin, RoundSelectionMixin):
         return len(self.get_selected_workers())
 
     def get_selected_workers(self) -> set[int]:
-        if self.round_index == 0:
+        if self.round_index == 0 or self.round_index == 1:
             return set(range(self.worker_number))
         if self._is_ablation_no_clustering():
             return self.select_worker_by_mi_ranking()
         if self._is_ablation_random_within_cluster_selection():
-            if self._families and any(self._families.values()):
-                return self._select_workers_randomly_from_clusters(self._families)
+            #if self._families and any(self._families.values()):
+            return self._select_workers_randomly_from_clusters(self._families)
             # Families not yet populated (round 2 before first clustering completes):
             # fall back to full participation so the round is not lost
-            log_warning(
-                "[ablation_random_within_cluster_selection] families not yet available at round %s "
-                " using full participation as fallback.",
-                self.round_index,
-            )
-            return set(range(self.worker_number))
+            #log_warning(
+            #    "[ablation_random_within_cluster_selection] families not yet available at round %s "
+            #    " using full participation as fallback.",
+            #    self.round_index,
+            #)
+            #return set(range(self.worker_number))
         if self._families and any(self._families.values()) and self.round_index != 1:
             selected_workers  = self._select_workers_from_clusters(self._families)
             return selected_workers
@@ -140,8 +140,7 @@ class GraphAggregationServer(Server, PerformanceMixin, RoundSelectionMixin):
         return  self.config.ablation_no_clustering
 
     def _is_ablation_random_within_cluster_selection(self) -> bool:
-        return self.config.algorithm_kwargs.get("ablation_random_within_cluster_selection", False
-                                                )
+        return self.config.ablation_random_within_cluster_selection
 
     def _get_selected_worker_num(self):
         return max(1, int(self.config.algorithm_kwargs.get("node_sample_percent", 1) * self.worker_number))
@@ -505,17 +504,20 @@ class GraphAggregationServer(Server, PerformanceMixin, RoundSelectionMixin):
         """
         with phase_timer() as _graph_timer:
             self._update_network()
-
+        # fix waiting server : capture before round index incrementing
+        _completed_round = self._round_index
+        _completed_selected = self.get_selected_workers()
         _algo_timing = self.__algorithm.last_round_timing
         _variant = (
             "ablation_no_clustering" if self._is_ablation_no_clustering()
             else "ablation_random_within_cluster_selection" if self._is_ablation_random_within_cluster_selection()
             else "grail_fl"
         )
+        selected_list = sorted(list(_completed_selected)) if _completed_selected is not None else []
         _rec = RoundTimingRecord(
-            round=self._round_index - 1,
-            n_workers_selected=len(self.get_selected_workers()),
-            selected_worker_ids=sorted(self.get_selected_workers()),
+            round=_completed_round,
+            n_workers_selected=len(_completed_selected),
+            selected_worker_ids=selected_list,
             variant=_variant,
             mi_matrix_build_ms=_algo_timing.get("mi_matrix_build_ms", 0.0),
             spectral_clustering_ms=_algo_timing.get("spectral_clustering_ms", 0.0),
@@ -534,12 +536,13 @@ class GraphAggregationServer(Server, PerformanceMixin, RoundSelectionMixin):
         self._model_cache.save()
         # Write manifest AFTER model is saved  guarantees model file exists
         # before any worker reads the manifest and attempts to load the model.
-        self._write_round_manifest()
+        # fix wait server
+        self._write_round_manifest(_completed_round, selected_list)
 
     def last_selected_workers(self):
         return self._last_selected_workers if self._last_selected_workers is not None else self.get_selected_workers()
 
-    def _write_round_manifest(self) -> None:
+    def _write_round_manifest(self, completed_round: int, selected: list[int] | None = None) -> None:
         """
         Write a small JSON manifest signalling that round aggregation is complete
         and which workers were selected. Workers poll this file to break the
@@ -551,13 +554,18 @@ class GraphAggregationServer(Server, PerformanceMixin, RoundSelectionMixin):
         was already incremented in _after_send_result before this is called.
         """
         import json
-        completed_round = self._round_index - 1
+        # fix server wait
+        if selected is None:
+            # fallback: use _last_selected_workers if called standalone
+            selected = list(self._last_selected_workers)
+
+        #completed_round = self._round_index - 1
         manifest_dir = os.path.join(self.config.save_dir, "aggregated_model")
         os.makedirs(manifest_dir, exist_ok=True)
         manifest_path = os.path.join(manifest_dir, f"round_{completed_round}.manifest.json")
         tmp_path = manifest_path + ".tmp"
         #selected = list(self.get_selected_workers())
-        selected = list(self.get_selected_workers())
+        #selected = list(self.get_selected_workers())
         manifest = {
             "round": completed_round,
             "status": "complete",
