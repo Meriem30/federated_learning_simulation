@@ -1,5 +1,6 @@
 import os
 import pickle
+import math
 import copy
 import time
 import json
@@ -53,14 +54,15 @@ class GraphAggregationServer(Server, PerformanceMixin, RoundSelectionMixin):
         self.__root_graph_folder = os.path.join("graph_spectral_clustering_images", datetime.now().strftime("%Y_%m_%d_%H-%M-%S"))
         assert not (
                 self.config.algorithm_kwargs.get("ablation_no_clustering", False)
-                and self.config.algorithm_kwargs.get("ablation_random_selection", False)
-        ), "ablation_no_clustering and ablation_random_selection are mutually exclusive"
+                and self.config.algorithm_kwargs.get("ablation_random_within_cluster_selection", False)
+        ), "ablation_no_clustering and ablation_random_within_cluster_selection are mutually exclusive"
         self._timing_recorder = TimingRecorder(
             save_dir=self.config.save_dir,
             n_workers_total=self.config.worker_number,
         )
         self._round_client_training_ms: dict[int, float] = {}
         self._round_client_mi_ms: dict[int, float] = {}
+        self._last_selected_workers: set[int] = set(range(self.config.worker_number))
 
     @property
     def early_stop(self) -> bool:
@@ -93,7 +95,7 @@ class GraphAggregationServer(Server, PerformanceMixin, RoundSelectionMixin):
             # Families not yet populated (round 2 before first clustering completes):
             # fall back to full participation so the round is not lost
             log_warning(
-                "[ablation_random_selection] families not yet available at round %s "
+                "[ablation_random_within_cluster_selection] families not yet available at round %s "
                 " using full participation as fallback.",
                 self.round_index,
             )
@@ -138,7 +140,8 @@ class GraphAggregationServer(Server, PerformanceMixin, RoundSelectionMixin):
         return  self.config.ablation_no_clustering
 
     def _is_ablation_random_within_cluster_selection(self) -> bool:
-        return self.config.ablation_random_within_cluster_selection
+        return self.config.algorithm_kwargs.get("ablation_random_within_cluster_selection", False
+                                                )
 
     def _get_selected_worker_num(self):
         return max(1, int(self.config.algorithm_kwargs.get("node_sample_percent", 1) * self.worker_number))
@@ -390,6 +393,7 @@ class GraphAggregationServer(Server, PerformanceMixin, RoundSelectionMixin):
             assert result.other_data is not None
             # update the stored graph data stored in the server (we may use _graph_client_states to assign families)
             self._update_graph_data(result)
+            self._last_selected_workers = self.get_selected_workers()
             # send the aggregated model to server
             log_debug("here is before calling _send_result function")
             self._send_result(result)
@@ -505,7 +509,7 @@ class GraphAggregationServer(Server, PerformanceMixin, RoundSelectionMixin):
         _algo_timing = self.__algorithm.last_round_timing
         _variant = (
             "ablation_no_clustering" if self._is_ablation_no_clustering()
-            else "ablation_random_selection" if self._is_ablation_random_within_cluster_selection()
+            else "ablation_random_within_cluster_selection" if self._is_ablation_random_within_cluster_selection()
             else "grail_fl"
         )
         _rec = RoundTimingRecord(
@@ -532,6 +536,9 @@ class GraphAggregationServer(Server, PerformanceMixin, RoundSelectionMixin):
         # before any worker reads the manifest and attempts to load the model.
         self._write_round_manifest()
 
+    def last_selected_workers(self):
+        return self._last_selected_workers if self._last_selected_workers is not None else self.get_selected_workers()
+
     def _write_round_manifest(self) -> None:
         """
         Write a small JSON manifest signalling that round aggregation is complete
@@ -549,6 +556,7 @@ class GraphAggregationServer(Server, PerformanceMixin, RoundSelectionMixin):
         os.makedirs(manifest_dir, exist_ok=True)
         manifest_path = os.path.join(manifest_dir, f"round_{completed_round}.manifest.json")
         tmp_path = manifest_path + ".tmp"
+        #selected = list(self.get_selected_workers())
         selected = list(self.get_selected_workers())
         manifest = {
             "round": completed_round,

@@ -1,4 +1,5 @@
 import random
+import math
 
 import torch
 from other_libs.algorithm.mapping_op import get_mapping_values_by_key_order
@@ -194,8 +195,13 @@ class RoundSelectionMixin(AggregationServerProtocol, WorkerProtocol):
         # ── 0. Early exits ────────────────────────────────────────────────────
         if self.round_index == 1:
             return set(range(self.worker_number))
-        if self.round_index in self.selection_result:
-            return self.selection_result[self.round_index]
+        #if self.round_index in self.selection_result:
+        #    return self.selection_result[self.round_index]
+        # Use a dedicated cache key that survives clear_worker_data()
+        cache_key = self.round_index
+        if cache_key in self.selection_result:
+            return self.selection_result[cache_key]
+
 
         # ── 1. Resolve selection budget (same logic as the full method) ───────
         sample_percent: float = self.config.algorithm_kwargs.get("node_sample_percent", 1.0)
@@ -231,7 +237,8 @@ class RoundSelectionMixin(AggregationServerProtocol, WorkerProtocol):
         }
 
         # Floor allocation  each cluster gets at least 1 slot if budget allows
-        floor_alloc = {fid: max(1, math.floor(q)) for fid, q in exact_quotas.items()}
+        #floor_alloc = {fid: max(1, math.floor(q)) for fid, q in exact_quotas.items()}
+        floor_alloc = {fid: math.floor(q) for fid, q in exact_quotas.items()}
         allocated = sum(floor_alloc.values())
 
         # Distribute leftover slots by largest fractional remainder

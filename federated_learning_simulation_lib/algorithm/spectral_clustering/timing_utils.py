@@ -128,7 +128,7 @@ class RoundTimingRecord:
     n_workers_total: int = 0
     n_workers_selected: int = 0
     selected_worker_ids: list = field(default_factory=list)
-    variant: str = "grail_fl"   # grail_fl | ablation_no_clustering | ablation_random_selection
+    variant: str = "grail_fl"   # grail_fl | ablation_no_clustering | ablation_random_within_cluster_selection
 
     # server-side (ms)
     mi_matrix_build_ms: float = 0.0
