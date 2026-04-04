@@ -134,8 +134,7 @@ class Server(Executor, RoundSelectionMixin, NodeSelectionMixin):
         worker_set: set = set()
         while not self._stopped():
             if not worker_set:
-                worker_set = set(range(min(self._endpoint.worker_num, self.selected_worker_number)))
-                #worker_set = set(range(self._endpoint.worker_num))
+                worker_set = set(range(self._endpoint.worker_num))
             assert self._endpoint.worker_num == self.config.worker_number
             for worker_id in copy.copy(worker_set):
                 has_data: bool = self._endpoint.has_data(worker_id)
