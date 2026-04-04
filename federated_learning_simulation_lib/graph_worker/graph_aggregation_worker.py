@@ -78,11 +78,7 @@ class GraphAggregationWorker(GraphWorker, AggregationWorker, ClientMixin):  # Ag
             return
 
         # ── Training wall-clock ───────────────────────────────────────────────
-        if self._training_start_time > 0.0:
-            self._training_ms = (time.perf_counter() - self._training_start_time) * 1_000.0
-            self._training_start_time = 0.0
-        else:
-            self._training_ms = 0.0
+        # already captured : [training time block DELETED  now computed in _get_sent_data]
 
         # The worker reached _after_training because _get_sent_data was called,
         # which only happens when the AFTER_EXECUTE hook fires — i.e. the worker
@@ -642,6 +638,12 @@ class GraphAggregationWorker(GraphWorker, AggregationWorker, ClientMixin):  # Ag
     def _get_sent_data(self) -> ParameterMessageBase:
         # Capture the round this worker actually trained in BEFORE __get_result_from_server
         # can increment _round_index for skipped future rounds.
+        if self._training_start_time > 0.0:
+            self._training_ms = (time.perf_counter() - self._training_start_time) * 1_000.0
+            self._training_start_time = 0.0  # reset so next round starts clean
+        else:
+            self._training_ms = 0.0
+
         self._last_trained_round = self.round_index
         if self.__choose_model_by_validation:
             assert self.best_model_hook is not None
@@ -729,6 +731,7 @@ class GraphAggregationWorker(GraphWorker, AggregationWorker, ClientMixin):  # Ag
             reuse_learning_rate=self._reuse_learning_rate,
             loading_fun=self._model_loading_fun,
         )
+        self._training_start_time = time.perf_counter()
         if result.end_training:
             self._force_stop = True
             raise StopExecutingException()
